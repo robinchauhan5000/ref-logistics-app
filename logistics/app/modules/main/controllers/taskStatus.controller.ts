@@ -1,0 +1,121 @@
+import { NextFunction, Request, Response } from 'express';
+import TaskStatusService from '../v1/services/taskStatus.service';
+import TaskService from '../v1/services/task.service';
+import NotificationService from '../v1/services/notifications.service';
+import logger from '../../../lib/logger';
+import Task from '../models/task.model';
+import { NoRecordFoundError } from '../../../lib/errors';
+import MESSAGES from '../../../lib/utils/messages';
+import HttpRequest from '../../../lib/utils/HttpRequest';
+import ModifyPayload from '../../../lib/utils/modifyPayload';
+// import { removeIdKeys } from '../../../lib/utils/utilityFunctions';
+
+const taskStatusService = new TaskStatusService();
+const notificationService = new NotificationService();
+const taskService = new TaskService();
+const modifyPayload = new ModifyPayload();
+
+const clientURL = process.env.PROTOCOL_BASE_URL || '';
+class TaskStatusController {
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = req.body;
+      if (data?.status === 'Customer-not-found') {
+        const task: any = await Task.findById(data?.taskId);
+        if (!task) {
+          throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
+        }
+
+        let tags = task?.fulfillments[0]?.tags;
+        tags = tags.filter((obj: any) => obj?.code === 'rto_action');
+        const updatedTask = await taskService.updateStatus(data.taskId, data.status);
+        const taskStatusObject = {
+          status: tags[0]?.list[0]?.value === 'no' ? 'RTO-Disposed' : 'RTO-Initiated',
+          description: data?.description,
+          taskId: data?.taskId,
+          link: data?.link,
+        };
+        await taskStatusService.create(taskStatusObject);
+        const headers = {};
+        const onCancelPayload = await modifyPayload.cancel(updatedTask);
+        logger.info(`POST cancel response : ${JSON.stringify(onCancelPayload, null, 2)}`);
+        const httpRequest = new HttpRequest(`${clientURL}/protocol/v1/on_cancel`, 'POST', onCancelPayload, headers);
+        httpRequest.send();
+
+        res.status(200).send({
+          message:
+            taskStatusObject?.status === 'RTO-Initiated'
+              ? 'This order is RTO-Initiated, Please deliver back to origin'
+              : 'This order is RTO-Disposed',
+        });
+      } else {
+        const savedTask = await taskStatusService.create(data);
+        if (savedTask) {
+          const updatedTask = await taskService.updateStatus(data.taskId, data.status);
+          const notificationData = {
+            type: 'Task',
+            typeId: updatedTask._id,
+            status: 'Unread',
+            userId: updatedTask.assignedBy,
+            text: updatedTask.status,
+          };
+          await notificationService.create(notificationData);
+          const headers = {};
+          const onStatusPayload = await modifyPayload.status(updatedTask);
+          const httpRequest = new HttpRequest(
+            `${clientURL}/protocol/v1/status`, //TODO: allow $like query
+            'POST',
+            onStatusPayload,
+            headers,
+          );
+          httpRequest.send();
+          res.status(200).send({
+            message: 'Status updated successfully.',
+          });
+        }
+      }
+    } catch (error: any) {
+      console.log({ error });
+      logger.error(`${req.method} ${req.originalUrl} error: ${error}`);
+      next(error);
+    }
+  }
+
+  async getTaskStatusList(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { taskId } = req.params;
+      const list = await taskStatusService.taskStatusByTaskId(taskId);
+      res.status(200).send({
+        message: 'Task status list fetched successfully.',
+        data: {
+          list,
+        },
+      });
+    } catch (error: any) {
+      logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
+      next(error);
+    }
+  }
+
+  async getTaskStatusById(req: Request, res: Response, next: NextFunction): Promise<any> {
+    try {
+      const { id } = req.params;
+      const taskStatus = await taskStatusService.getTaskStatusById(id);
+      const task = await taskService.getOne(id);
+      if (taskStatus && task) {
+        res.status(200).send({
+          message: 'Task fetched successfully',
+          data: {
+            taskStatus,
+            task,
+          },
+        });
+      }
+    } catch (error: any) {
+      logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
+      next(error);
+    }
+  }
+}
+
+export default TaskStatusController;

@@ -1,0 +1,1181 @@
+openapi: 3.0.0
+info:
+  title: Logistcis-API
+  version: 1.0.0
+servers:
+  # - url: http://{{logistics-api}}
+  # - url: http://{{baseurl}}
+  - url: https://ref-logistics-app-dev.thewitslab.com/api/
+tags:
+  - name: Auth
+  - name: Users
+  - name: Agent
+  - name: Tasks
+  - name: Application Settings
+  - name: Task Status
+  - name: Issues
+  - name: Notifications
+paths:
+  /v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: User Login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                email: raman.kumar9@yopmail.com
+                password: Dummy
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/verifyInviteLink/0e925cf2-2138-40db-acc6-917e77103059:
+    get:
+      tags:
+        - Auth
+      summary: Verify Invite Link
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/createPassword:
+    post:
+      tags:
+        - Auth
+      summary: Create Password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                userId: 8c74ca75-3f89-4e6f-9c16-2775b8dffe04
+                password: Dummy@pwd29!
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/mmi/token:
+    get:
+      tags:
+        - Auth
+      summary: GET MMI API Token
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/forgotPassword:
+    post:
+      tags:
+        - Auth
+      summary: Forget Password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                email: akash.lal@thewitslab.com
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/googleLogin:
+    post:
+      tags:
+        - Auth
+      summary: login via google
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                googleAccessToken: ''
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/resetPassword:
+    post:
+      tags:
+        - Auth
+      summary: reset password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                password: Test@123
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMWU2NGE3NmYtZDEwMS00MDc1LTkxZWEtYjc1YmEzMzY1ODUxIiwicm9sZSI6IkFkbWluIn0sImlhdCI6MTY4NzE2MTk4MiwiZXhwIjoxNjg3NTIxOTgyfQ.SXavk59ke-MCHuEl1xv9hxxCFqhqBISQzN7SLUpP1Ww
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/loginviaMobile:
+    post:
+      tags:
+        - Auth
+      summary: Agent Login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                mobile: '+918146448923'
+                otp: '0701'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/changePassword:
+    post:
+      tags:
+        - Auth
+      summary: Change Password
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              type: string
+              example: >-
+                "{\n    \"currentPassword\":\"Dummy@pwd29\",\n   
+                \"newPassword\":\"Dummy@pwd29\"\n}"
+      parameters:
+        - name: Content-Type
+          in: header
+          schema:
+            type: string
+          example: application/json
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiNDU2NTBhNzktYzVmYi00ZjUyLTg0ZDAtNzg1Nzc1MmE2MzlkIiwicm9sZSI6eyJfaWQiOiJjNzhlYzJjNS02NmM4LTQ0OGItYmVmYi0yNDZhMTMwODEwMDAiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg3MzMxNTE1NzE4LCJpYXQiOjE2ODczMzE1MTUsImV4cCI6MTY4NzY5MTUxNX0.W-tNTY4a4g1yJGkMY-ncWFYVVKEoCXaH3ZpUS545Yzs
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/auth/checkContactNumber:
+    post:
+      tags:
+        - Auth
+      summary: Check contact number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                mobile: '7563847585'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/users/invite/admin:
+    post:
+      tags:
+        - Users
+      summary: Invite Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                admins:
+                  - email: rajat.sharma@thewitslab.com
+                    mobile: '1234567894'
+                    name: Rajat
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiNDgzY2ZiMjItYzMwZi00Y2Y4LWEyYjctNWU5MGFiNjlhZGIxIiwicm9sZSI6eyJfaWQiOiIxYjllNTVjNi02ODJiLTRhMDMtODEyYy0zOGRiOWE2ZjBiNmUiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg1OTY2Mzc3OTY1LCJpYXQiOjE2ODU5NjYzNzcsImV4cCI6MTY4NjMyNjM3N30.hhEfuY_tRbI6A3OrTft1y_vBlASHlP_cx3Zu0iDCIcw
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/users/getProfile:
+    get:
+      tags:
+        - Users
+      summary: Get Profile
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiZDUzMTNiZGItM2UyNC00YWU1LWE3ZjYtNmUwNmI2MWY2YjQyIiwicm9sZSI6eyJfaWQiOiI2ZTFlYmY1OS1hNWM2LTRhNzQtODc3NC1kYTdmNzdlMjk5NmEiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg4NTYwODc1NDI4LCJpYXQiOjE2ODg1NjA4NzUsImV4cCI6MTY4ODkyMDg3NX0.JpA3ZYZiEO335_L80eQ9tvVuaS96kvGFLcqSpszymTI
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/users/invite/agent:
+    post:
+      tags:
+        - Users
+      summary: Invite Agent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                addressDetails:
+                  location:
+                    coordinates:
+                      - 30.733315
+                      - 76.779419
+                  building: M 21 Madhuban Colony
+                  locality: Anandpur
+                  city: Haldwani
+                  state: Uttarakhand
+                  country: India
+                  pincode: '263139'
+                email: kirti@gmail.com
+                mobile: '7252943789'
+                firstName: kirti
+                lastName: joshi
+                dob: 31/01/1990
+                deliveryExperience: '2'
+                emailNotification: true
+                whatsAppNotification: true
+                currentLocation:
+                  coordinates:
+                    - 30.733315
+                    - 76.779419
+                vehicleDetails:
+                  vehicleNumber: UK 04 A 4960
+                  brandName: Hyundai
+                  ownerType: second owner
+                  makeYear: '2006'
+                  intercity: 'no'
+                  vehicleRegistrationDocument: >-
+                    https://ondc-lsp-dev.s3.ap-south-1.amazonaws.com/1688642439775.pdf
+                  maxWeightCapacity:
+                    weight: 99
+                    unit: kg
+                deliveryType:
+                  - Express Delivery
+                  - Standard Delivery
+                  - Immediate Delivery
+                  - Same Day Delivery
+                KYCDetails:
+                  PANdetails: BPZPJ0302R
+                  aadhaarNumber: '293193568264'
+                  drivingLicense: >-
+                    https://ondc-lsp-dev.s3.ap-south-1.amazonaws.com/1688642459403.pdf
+                  addressProof: >-
+                    https://ondc-lsp-dev.s3.ap-south-1.amazonaws.com/1688642465945.pdf
+                  IDproof: >-
+                    https://ondc-lsp-dev.s3.ap-south-1.amazonaws.com/1688642469383.pdf
+                  PANcard: >-
+                    https://ondc-lsp-dev.s3.ap-south-1.amazonaws.com/1688642472733.pdf
+                bankDetails:
+                  accountHolderName: KIRTI
+                  accountNumber: '27730100011827'
+                  bankName: BANK OF BARODA
+                  branchName: HLD
+                  IFSCcode: BARB0PBBHAL
+                  cancelledCheque: >-
+                    https://ondc-lsp-dev.s3.ap-south-1.amazonaws.com/1688642501399.pdf
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiZDUzMTNiZGItM2UyNC00YWU1LWE3ZjYtNmUwNmI2MWY2YjQyIiwicm9sZSI6eyJfaWQiOiI2ZTFlYmY1OS1hNWM2LTRhNzQtODc3NC1kYTdmNzdlMjk5NmEiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg4NTYwODc1NDI4LCJpYXQiOjE2ODg1NjA4NzUsImV4cCI6MTY4ODkyMDg3NX0.JpA3ZYZiEO335_L80eQ9tvVuaS96kvGFLcqSpszymTI
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/users/list:
+    get:
+      tags:
+        - Users
+      summary: List all admins
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMzc5OWE1N2EtNGY4YS00YWM5LWI4NDUtMWYyNTZjYTFkNmJmIiwicm9sZSI6eyJfaWQiOiI1Y2NkZTRlNS1lY2JhLTQ2MzktOGU2MC1jODRmNjJlY2Q1NjMiLCJuYW1lIjoiQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg2NjQ4NzY3OTUwLCJpYXQiOjE2ODY2NDg3NjcsImV4cCI6MTY4NzAwODc2N30.X8kZdyli2qBeD1nWYbGb4z1Xk5wRn-TmVgnPzcL5Y9g
+        - name: skip
+          in: query
+          schema:
+            type: integer
+          example: '0'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          example: '10'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/users/getDashboard:
+    get:
+      tags:
+        - Users
+      summary: Get Summary
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/drivers/list:
+    get:
+      tags:
+        - Users
+      summary: List all drivers
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMjFiYzA2N2MtOWUzYy00NjVmLWIwNDUtZmI0YjVjNTI5YjQxIiwicm9sZSI6eyJfaWQiOiI3ZjAyMTUzMS1lNWM2LTQ2YmMtYWY2Ny03NDVjYzdiZWY2ZjQiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg4NzIzMTQzNDk5LCJpYXQiOjE2ODg3MjMxNDMsImV4cCI6MTY4OTA4MzE0M30.1LDKOn0U9uA4m_Lh5Sr0-jr5aTRC-ydIRDeVeuSDCrE
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/users/updateProfile:
+    post:
+      tags:
+        - Users
+      summary: Update profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                name: Aakash
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/users/settings:
+    post:
+      tags:
+        - Users
+      summary: Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                userId: ei3943-rj0jr9rj9
+                pricePerDistance:
+                  unit: kg
+                  value: '3'
+                pricePerWeight:
+                  unit: kg
+                  value: '2'
+                  type: type2
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/uploadFile:
+    post:
+      tags:
+        - Agent
+      summary: Upload file
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/search:
+    get:
+      tags:
+        - Agent
+      summary: Search Agent
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/delete/1ee017cf-a9df-4905-8810-3d0c59c2246b:
+    post:
+      tags:
+        - Agent
+      summary: Remove Agent
+      requestBody:
+        content: {}
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/block/1ee017cf-a9df-4905-8810-3d0c59c2246b:
+    post:
+      tags:
+        - Agent
+      summary: Block Agent
+      requestBody:
+        content: {}
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMmE1NTAyNDQtMzcwNy00NjE2LTgwOTAtMGQwZjUxYzZhMGUyIiwicm9sZSI6eyJfaWQiOiJmOGEwZGQxZC1hODExLTQ0NmUtYThmNS1iOTUyMTM3MjZiMDMiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg4NDc2MTU5OTY3LCJpYXQiOjE2ODg0NzYxNTksImV4cCI6MTY4ODgzNjE1OX0.D_bUICD8b4SuYE3CPIlVUZ7-vksiuo21tmhcSwigM34
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/toggleStatus:
+    post:
+      tags:
+        - Agent
+      summary: Change online status
+      requestBody:
+        content: {}
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMWU1ZDBjNzUtMGNhOC00NDA0LWExMGItYjQwNTIyNWNmZGZlIiwicm9sZSI6eyJfaWQiOiI1MTc3OWVmNC01Yzc3LTQ3MGMtODg5MC1jODFkMTg3ZDA0YWUiLCJuYW1lIjoiQWdlbnQifX0sImxhc3RMb2dpbkF0IjoxNjg4NzM0MTc3NDE1LCJpYXQiOjE2ODg3MzQxNzcsImV4cCI6MTY4OTA5NDE3N30.XfK02W5QIwUXp9z3viT1Ng-h67dmlJA0kP6XF158CF8
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/1ee017cf-a9df-4905-8810-3d0c59c2246b/update:
+    post:
+      tags:
+        - Agent
+      summary: Update Agent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                agentData:
+                  firstName: updated name
+                  lastName: updated last name
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/getQuotes:
+    post:
+      tags:
+        - Agent
+      summary: Get Quotes
+      requestBody:
+        content: {}
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/sse:
+    get:
+      tags:
+        - Agent
+      summary: sse
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/updateLocation:
+    post:
+      tags:
+        - Agent
+      summary: Update Location
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                currentLocation: 27.12345,76.236
+                isOnline: 'true'
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/getTasks:
+    get:
+      tags:
+        - Agent
+      summary: Get Tasks
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/agent/get/b0962128-11cf-4b08-922f-46f1f404a2a3:
+    get:
+      tags:
+        - Agent
+      summary: Get agent details
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiYWRkZDY3ZGYtMTcyMi00YjkyLThjOTItYzZiNjBmYzk4NDE2Iiwicm9sZSI6eyJfaWQiOiI3YzNhNjg4MC04Y2NmLTRhMzEtYWM0ZC1hMGYwYzA3NTgwZjMiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg5MjQ2MjI5MjAzLCJpYXQiOjE2ODkyNDYyMjksImV4cCI6MTY4OTYwNjIyOX0.Ma7ymCoTbk5WKn7AE0B2vBS0VcfWxtWhyqYO9_7WE9Q
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/create:
+    post:
+      tags:
+        - Tasks
+      summary: Create a Task
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                category:
+                  id: Immediate Delivery
+                linked_order:
+                  items:
+                    - category_id: grocery
+                      price:
+                        currency: INR
+                        value: '23'
+                      dangerous_goods: 'false'
+                  order:
+                    weight:
+                      unit: kilogram
+                      value: '1'
+                    dimensions:
+                      length:
+                        unit: centimeter
+                        value: 1
+                      breadth:
+                        unit: centimeter
+                        value: 1
+                      height:
+                        unit: centimeter
+                        value: 1
+                  provider:
+                    time:
+                      days: 1,2,3,4,5,6,7
+                      schedule:
+                        holidays:
+                          - '2023-06-29'
+                          - '2023-08-15'
+                      duration: PT30M
+                      range:
+                        start: '1100'
+                        end: '2100'
+                fulfillments:
+                  - type: Delivery
+                    start:
+                      location:
+                        gps: 12.453544,77.928379
+                        address:
+                          area_code: '560041'
+                    end:
+                      location:
+                        gps: 12.453544,77.928379
+                        address:
+                          area_code: '560001'
+                payment:
+                  type: POST-FULFILLMENT
+                  collection_amount: '300.00'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/get/assigned:
+    get:
+      tags:
+        - Tasks
+      summary: Get assigned Tasks
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/get/unassigned:
+    get:
+      tags:
+        - Tasks
+      summary: Get unassigned Tasks
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {} 
+  /v1/task/get/1ee017cf-a9df-4905-8810-3d0c59c2246b:
+    get:
+      tags:
+        - Tasks
+      summary: Get single Task
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {} 
+  /v1/task/assigneAgent:
+    post:
+      tags:
+        - Tasks
+      summary: Assign agent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                taskId: 64a806cc6f7f08ee4b4cab04
+                agentId: b0962128-11cf-4b08-922f-46f1f404a2a3
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMGM2YzU2ZDYtZGM4NS00ZWU5LWExNTctYjNiMGZhYTU3Y2U5Iiwicm9sZSI6eyJfaWQiOiJmMjA5MGE5NC05NWVlLTQ4ZWQtODY2Zi1hMzNmZDllYjAyNjAiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg4NzMwNjc4MTcwLCJpYXQiOjE2ODg3MzA2NzgsImV4cCI6MTY4OTA5MDY3OH0.CSrkamoqBaxHqknZQHctyFVg2QZmnnfn9txJaZ6L69I
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/get/0ae8bdbb-f6a0-4f3b-9159-6573346a3b7c:
+    get:
+      tags:
+        - Tasks
+      summary: Get task for Agent 
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/issue/0ae8bdbb-f6a0-4f3b-9159-6573346a3b7c:
+    get:
+      tags:
+        - Tasks
+      summary: Get task by transaction Id 
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/update:
+    put:
+      tags:
+        - Tasks
+      summary: Update task
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                taskId: 649c29bd26a19ac7450de1f7
+                data:
+                  id: O2
+                  state: Created
+                  provider:
+                    id: P1
+                    locations:
+                      - id: L1
+                  items:
+                    - id: I1
+                      fulfillment_id: '1'
+                      category_id: Immediate Delivery
+                      descriptor:
+                        code: P2P
+                      time:
+                        label: TAT
+                        duration: PT45M
+                        timestamp: '2023-06-06'
+                  quote:
+                    price:
+                      currency: INR
+                      value: '59.00'
+                    breakup:
+                      - '@ondc/org/item_id': I1
+                        '@ondc/org/title_type': delivery
+                        price:
+                          currency: INR
+                          value: '50.00'
+                      - '@ondc/org/item_id': I1
+                        '@ondc/org/title_type': tax
+                        price:
+                          currency: INR
+                          value: '9.00'
+                  fulfillments:
+                    - id: '1'
+                      type: Delivery
+                      '@ondc/org/awb_no': '1227262193237777'
+                      start:
+                        time:
+                          duration: PT15M
+                        person:
+                          name: person_name
+                        location:
+                          gps: 12.4535445,77.9283792
+                          address:
+                            name: Store name
+                            building: House or building name
+                            locality: Locality
+                            city: Bengaluru
+                            state: Karnataka
+                            country: India
+                            area_code: '560041'
+                        contact:
+                          phone: '9886098860'
+                          email: abcd.efgh@gmail.com
+                        instructions:
+                          code: '2'
+                          short_desc: value of PCC
+                          long_desc: QR code will be attached to package
+                          images:
+                            - URL or data string as per spec
+                          additional_desc:
+                            content_type: text/html
+                            url: https://reverse_qc_sop_form.htm
+                      end:
+                        person:
+                          name: person_name
+                        location:
+                          gps: 12.453544,77.928379
+                          address:
+                            name: 'My house #'
+                            building: My house or building name
+                            locality: locality
+                            city: Bengaluru
+                            state: Karnataka
+                            country: India
+                            area_code: '560076'
+                        contact:
+                          phone: '9886098860'
+                          email: abcd.efgh@gmail.com
+                        instructions:
+                          code: '3'
+                          short_desc: value of DCC
+                        long_desc:
+                          drop package at security gate: ''
+                          additional_desc:
+                            content_type: text/html
+                            url: URL for instructions
+                      tags:
+                        - code: state
+                          list:
+                            - code: ready_to_ship
+                              value: 'no'
+                        - code: rto_action
+                          list:
+                            - code: return_to_origin
+                              value: 'no'
+                  billing:
+                    name: ONDC Logistics Buyer NP
+                    address:
+                      name: name
+                      building: My house or building name
+                      locality: My street name
+                      city: Bengaluru
+                      state: Karnataka
+                      country: India
+                      area_code: '560076'
+                    tax_number: 29AAACU1901H1ZK
+                    phone: '9886098860'
+                    email: abcd.efgh@gmail.com
+                    created_at: '2023-06-06T21:30:00.000Z'
+                    updated_at: '2023-06-06T21:30:00.000Z'
+                  payment:
+                    '@ondc/org/collection_amount': '300.00'
+                    collected_by: BPP
+                    type: ON-FULFILLMENT
+                    '@ondc/org/settlement_details':
+                      - settlement_counterparty: buyer-app
+                        settlement_type: upi
+                        upi_address: gft@oksbi
+                        settlement_bank_account_no: XXXXXXXXXX
+                        settlement_ifsc_code: XXXXXXXXX
+                  linked_order:
+                    items:
+                      - category_id: Grocery
+                        descriptor:
+                          name: Atta
+                        quantity:
+                          count: 2
+                          measure:
+                            unit: kilogram
+                            value: 0.5
+                        price:
+                          currency: INR
+                          value: '150.00'
+                    provider:
+                      descriptor:
+                        name: Aadishwar Store
+                      address:
+                        name: KHB Towers
+                        building: Building or House No
+                        street: 6th Block
+                        locality: Koramangala
+                        city: Bengaluru
+                        state: Karnataka
+                        area_code: '560070'
+                    order:
+                      id: O1
+                      weight:
+                        unit: kilogram
+                        value: 1
+                      dimensions:
+                        length:
+                          unit: centimeter
+                          value: 1
+                        breadth:
+                          unit: centimeter
+                          value: 1
+                        height:
+                          unit: centimeter
+                          value: 1
+                  tags:
+                    - code: bpp_terms
+                      list:
+                        - code: max_liability
+                          value: '2'
+                        - code: max_liability_cap
+                          value: '10000'
+                        - code: mandatory_arbitration
+                          value: 'false'
+                        - code: court_jurisdiction
+                          value: Bengaluru
+                        - code: delay_interest
+                          value: '1000'
+                        - code: static_terms
+                          value: >-
+                            https://github.com/ONDC-Official/protocol-network-extension/discussions/79
+                    - code: bap_terms
+                      list:
+                        - code: accept_bpp_terms
+                          value: 'Y'
+                  created_at: '2023-06-06T22:00:00.000Z'
+                  updated_at: '2023-06-06T22:00:00.000Z'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/updateStatus:
+    post:
+      tags:
+        - Tasks
+      summary: Update Task Status
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                taskId: 64a806cc6f7f08ee4b4cab04
+                status: Pending
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMWU1ZDBjNzUtMGNhOC00NDA0LWExMGItYjQwNTIyNWNmZGZlIiwicm9sZSI6eyJfaWQiOiI1MTc3OWVmNC01Yzc3LTQ3MGMtODg5MC1jODFkMTg3ZDA0YWUiLCJuYW1lIjoiQWdlbnQifX0sImxhc3RMb2dpbkF0IjoxNjg5MDc2NjEyODM3LCJpYXQiOjE2ODkwNzY2MTIsImV4cCI6MTY4OTQzNjYxMn0.weftMMBBkUe5anjIiwvMtcrF3FB4SbrfecMOEqwqRwI
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/cancel:
+    post:
+      tags:
+        - Tasks
+      summary: Cancel task
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                data:
+                  taskId: 72yhff0wir3idkea
+                  description: order not picked up on time
+                  isRTO: 'false'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/tassk/init:
+    post:
+      tags:
+        - Tasks
+      summary: Lock agent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                transaction_id: iwhduhfd9ejp
+                agentId: jshwid-djdodm3-4k5nk
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/applicationSetting/create:
+    post:
+      tags:
+        - Application Settings
+      summary: Update Application Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                name: Akash
+                email: akash.lal@thewitslab.com
+                uri: "https://telegram.me/support"
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiZTAzZmUzZWYtOTE1Ny00ZTUzLThkNjgtY2I5ZTRiOWM1NmI3Iiwicm9sZSI6eyJfaWQiOiJhNWI0ZWQ2MS00MTk5LTQ2MmMtODhiNC1jNzJlYjJkYWI0M2IiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg4NTQxNjY4ODMwLCJpYXQiOjE2ODg1NDE2NjgsImV4cCI6MTY4ODkwMTY2OH0.pSFGIvNJPKZ_j2j55xJS7rqsUhT8BNdad572r6tNIuU
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/logistics/support:
+    get:
+      tags:
+        - Application Settings
+      summary: Get Application Settings
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiZDUzMTNiZGItM2UyNC00YWU1LWE3ZjYtNmUwNmI2MWY2YjQyIiwicm9sZSI6eyJfaWQiOiI2ZTFlYmY1OS1hNWM2LTRhNzQtODc3NC1kYTdmNzdlMjk5NmEiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg4NTYwMTY1MTEzLCJpYXQiOjE2ODg1NjAxNjUsImV4cCI6MTY4ODkyMDE2NX0.hsx5dWABRsoTLGzIaXzZsiL_120ZdjKFvSG7ySxuVb4
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/taskStatus/create:
+    post:
+      tags:
+        - Task Status
+      summary: Create Single Task
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                description: description 2
+                link: >-
+                  https://ondc-lsp-dev.s3.ap-south-1.amazonaws.com/1689243181741.jpeg
+                status: Customer-not-found
+                taskId: 64b11a588fbf84a29311b1cb
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/taskStatus/task/64b11a588fbf84a29311b1cb:
+    get:
+      tags:
+        - Task Status
+      summary: Get all Task Status
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/taskStatus/get/64b11a588fbf84a29311b1cb:
+    get:
+      tags:
+        - Task Status
+      summary: Get Single Task Status
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/issue/64ad3842b2d3d6106896a913:
+    get:
+      tags:
+        - Issues
+      summary: Get Single Issue
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMTJjYzU4NmQtOWRmMi00ZjJmLTkyMzgtYjZhMmMwZGUwYTI3Iiwicm9sZSI6eyJfaWQiOiJhNTE1ZjUwMS05NTc0LTQ3ZDUtYWI4Zi01ZDcxZTM4MWYwY2MiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg5MDc2NTE2MTg1LCJpYXQiOjE2ODkwNzY1MTYsImV4cCI6MTY4OTQzNjUxNn0.u2mpp4aU-GNmbAlnJgHrH_4f7lbtS0xdg8yUAZIC8HA
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/issue/list:
+    get:
+      tags:
+        - Issues
+      summary: Get All Issues
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/issue/update/64af8ad314edeb3103869580:
+    post:
+      tags:
+        - Issues
+      summary: Update Single Issue
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              type: string
+              example: >-
+                "{\n    \"action_triggered\": \"NO-ACTION\",\n   
+                \"short_desc\":\"dhfgjsf\",\n    \"long_desc\":\"dsgdgd\"\n}"
+      parameters:
+        - name: Content-Type
+          in: header
+          schema:
+            type: string
+          example: application/json
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+  /v1/task/notification:
+    post:
+      tags:
+        - Notifications
+      summary: get all notifications
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          example: >-
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoiMTJjYzU4NmQtOWRmMi00ZjJmLTkyMzgtYjZhMmMwZGUwYTI3Iiwicm9sZSI6eyJfaWQiOiJhNTE1ZjUwMS05NTc0LTQ3ZDUtYWI4Zi01ZDcxZTM4MWYwY2MiLCJuYW1lIjoiU3VwZXIgQWRtaW4ifX0sImxhc3RMb2dpbkF0IjoxNjg5MDc2NTE2MTg1LCJpYXQiOjE2ODkwNzY1MTYsImV4cCI6MTY4OTQzNjUxNn0.u2mpp4aU-GNmbAlnJgHrH_4f7lbtS0xdg8yUAZIC8HA
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      
