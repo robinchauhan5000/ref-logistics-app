@@ -17,14 +17,17 @@ router.post('/v2/logistics/agent/search', agentControllerV2.searchAgent);
 
 router.post('/v1/agent/uploadFile', authentication, upload.array('image'), agentController.uploadFile);
 
-router.post('/v1/agent/search',authentication, agentController.search);
-router.post('/v1/agent/getQuotes',authentication, agentController.getQuotes);
+router.post('/v1/agent/search', authentication, agentController.search);
+router.post('/v1/agent/getQuotes', authentication, agentController.getQuotes);
 
-router.get('/v1/agent/sse', taskController.sse);
+router.get('/v1/agent/sse1', taskController.sse);
 router.post('/v1/agent/location', authentication, agentController.updateLocation);
 // get liveLocation of agent
-router.get('/v1/agent/liveLocation/:id',authentication,agentController.getLiveLocation)
+router.get('/v1/agent/liveLocation/:id', authentication, agentController.getLiveLocation);
 router.get('/v1/agent/getTasks', authentication, agentController.getTasks);
+// to mark all driver onine/offline
+router.post('/v1/agent/updateAgentStatus', authentication, agentController.markOnlineOrOffline);
+
 router.post('/v1/agent/delete/:id', authentication, agentController.delete);
 router.post('/v1/agent/block', authentication, agentController.blockAgent);
 router.post('/v1/agent/toggleStatus', authentication, taskController.toggleIsOnline);

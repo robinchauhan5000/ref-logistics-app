@@ -1,12 +1,21 @@
 import TaskService from '../../modules/main/v1/services/task.service';
 import AgentService from '../../modules/main/v1/services/agent.service';
-// import TicketStatusService from '../../modules/authentication/v1/services/taskStatus.service';
+import TicketStatusService from '../../modules/main/v1/services/taskStatus.service';
+
 // import IssueStatusService from '../../modules/authentication/v1/services/issueStatus.service';
 import cron from 'node-cron';
+import ModifyPayload from './modifyPayload';
+import HttpRequest from './HttpRequest';
+
+const modifyPayload = new ModifyPayload();
+// import Agent from '../../modules/main/models/agent.model';
 
 const taskService = new TaskService();
 const agentService = new AgentService();
-// const ticketStatusService = new TicketStatusService();
+const taskStatusService = new TicketStatusService();
+
+const clientURL = process.env.PROTOCOL_BASE_URL || '';
+
 // const issueStatusService = new IssueStatusService();
 
 // import { tasks, Task } from './tasks';+
@@ -92,21 +101,99 @@ const agentService = new AgentService();
 //   }
 // };
 
-const removeDriverFromPendingTask = async () => {
-  const query = { status: { $in: ['Pending'] } };
+// const removeDriverFromPendingTask = async () => {
+//   const query = { status: { $in: ['Pending'] } };
+//   const tasks = await taskService.getActiveTasks(query);
+//   tasks.forEach(async (task: any) => {
+//     const time = Date.now() - Date.parse(task?.createdAt);
+//     if (time > 15 * 60 * 1000) {
+//       const toUpdate = {
+//         isAvailable: true,
+//       };
+//       await agentService.updateAvailability(toUpdate, task.assignee);
+//       task.assignee = '';
+//       task.save();
+//     }
+//   });
+// };
+
+const assignNewDriver = async () => {
+  try {
+      const query = { is_confirmed: true, status: 'In-transit' };
   const tasks = await taskService.getActiveTasks(query);
-  tasks.forEach(async (task: any) => {
-    const time = Date.now() - Date.parse(task?.createdAt);
-    if (time > 15 * 60 * 1000) {
-      const toUpdate = {
-        isAvailable: true,
-      };
-      await agentService.updateAvailability(toUpdate, task.assignee);
-      task.assignee = '';
-      task.save();
+  tasks.forEach(async (task: any)=> {
+        const taskUpdateDetails = {
+      taskId : task._id,
+      status: "At-destination-hub", 
+      // agentId: task.assignee
     }
-  });
-};
+    await taskStatusService.create(taskUpdateDetails)
+    const searchCoordinates = task.otherFulfillments[1].start.location.address.location.coordinates.join(",")
+    const agent =  await agentService.searchAgent(searchCoordinates, "")
+    console.log({agent: agent.agents[0]})
+    const agentDetails = agent.agents[0]
+
+    task.status = 'At-destination-hub'
+    task.assignee = agentDetails._id
+
+    task.fulfillments[0] = {
+      ...task.fulfillments[0]._doc,
+             state: {
+            descriptor: {
+              code: 'At-destination-hub',
+            },
+          },
+        agent: { name: agentDetails.userId.name, mobile:  agentDetails.userId.mobile },
+        vehicle: { registration: agentDetails.vehicleDetails.vehicleNumber }, 
+    }
+
+    task.otherFulfillments[1] = {
+      ...task.otherFulfillments[1],
+      assignee : agentDetails._id
+    }
+    
+
+    await task.save()
+              const headers = {};
+          const onStatusPayload = await modifyPayload.status(task);
+          const httpRequest = new HttpRequest(
+            `${clientURL}/protocol/v1/status`, //TODO: allow $like query
+            'POST',
+            onStatusPayload,
+            headers,
+          );
+          httpRequest.send();
+    //create new order for other user
+    await taskStatusService.create({
+            taskId : task._id,
+      status: "Order-confirmed", 
+      agentId: agentDetails._id
+    })
+        //create new order for other user
+    await taskStatusService.create({
+            taskId : task._id,
+      status: "Agent-assigned", 
+      agentId: agentDetails._id
+    })
+    
+  })
+
+
+  } catch (error) {
+    
+  }
+}
+
+// const checkOnline = async () => {
+//   const agentList = await Agent.find({ isOnline: true });
+//   agentList.forEach(async (agent: any) => {
+//     const time = Date.now() - Date.parse(agent.currentLocation.updatedAt);
+//     if (time > 10 * 60 * 1000) {
+//       agent.isOnline = false;
+//       agent.save()
+//     }
+//   });
+// };
 
 export function runCronJob(): void {
   // Define the cron job
@@ -115,6 +202,8 @@ export function runCronJob(): void {
     // checkPickUpControl();
     // checkPackageDropControl();
     // checkIssueStatusControl();
-    removeDriverFromPendingTask();
+    // checkOnline();
+    // removeDriverFromPendingTask();
+    assignNewDriver()
   });
 }

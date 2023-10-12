@@ -10,7 +10,7 @@ class ApplicationSettingController {
       const data = req.body;
       await applicationSettingService.createSetting(data);
       res.status(200).json({
-        message: 'Application Setting created successfully',
+        message: 'Support details updated successfully',
       });
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);

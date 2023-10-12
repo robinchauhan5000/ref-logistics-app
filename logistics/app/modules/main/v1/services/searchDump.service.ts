@@ -11,6 +11,7 @@ class SearchDumpService {
         return true;
       }
     } catch (error: any) {
+      console.log({ error });
       if (error.status === 409) {
         throw error;
       } else {
@@ -21,7 +22,7 @@ class SearchDumpService {
 
   async getSearchDump(deliveryId: string) {
     try {
-      const dumpObj = await SearchDump.findOne({ delivery: deliveryId });
+      const dumpObj = await SearchDump.findOne({ delivery: deliveryId }).lean();
       return dumpObj;
     } catch (error: any) {
       if (error.status === 409) {

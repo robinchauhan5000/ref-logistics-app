@@ -40,13 +40,14 @@ interface ISettings {
   pricePerWeight: IPricePerWeigth;
 }
 interface ICurrentUser {
+  agentId: string | undefined;
   _id: string;
   name: string;
   mobile: string;
   email: string;
   role: IRole;
   enabled: number;
-  isAgentDetialsUpdated?: boolean;
+  isAgentDetailsUpdated?: boolean;
   password?: string;
   settings: ISettings;
   firstName: string;
@@ -398,15 +399,48 @@ class UserService {
                 },
               },
               totalTasks: { $size: '$tasks' },
+              driverCurrentStatus: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $eq: ['$isAvailable', false] },
+                          { $eq: [{ $arrayElemAt: ['$tasks.is_confirmed', 0] }, true] },
+                        ],
+                      },
+                      then: 'Locked',
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $eq: ['$isAvailable', false] },
+                          { $eq: [{ $arrayElemAt: ['$tasks.is_confirmed', 0] }, false] },
+                        ],
+                      },
+                      then: 'SoftLocked',
+                    },
+                    {
+                      case: {
+                        $eq: ['$isAvailable', false],
+                      },
+                      then: 'Unavailable',
+                    },
+                  ],
+                  default: 'Available',
+                },
+              },
             },
           },
           {
             $project: {
               isOnline: 1,
+              isAvailable: 1,
               userId: 1,
               completedTasksCount: 1,
               tasksInProgressCount: 1,
               totalTasks: 1,
+              driverCurrentStatus: 1,
             },
           },
           {
@@ -423,13 +457,16 @@ class UserService {
           {
             $project: {
               isOnline: 1,
+              isAvailable: 1,
               'userId.name': 1,
               'userId.mobile': 1,
               'userId.enabled': 1,
               'userId.email': 1,
+              'userId.isAccountLocked': 1,
               completedTasksCount: 1,
               tasksInProgressCount: 1,
               totalTasks: 1,
+              driverCurrentStatus: 1,
             },
           },
           {
@@ -477,7 +514,7 @@ class UserService {
     }
   }
 
-  async getAdminsList(userId: string, skip: number, limit: number, searchString: string | undefined): Promise<any> {
+  async getAdminsList(userId: string, skip: number, limit: number, searchString?: string | undefined): Promise<any> {
     try {
       const user = await User.findById({ _id: userId });
       if (!user) {

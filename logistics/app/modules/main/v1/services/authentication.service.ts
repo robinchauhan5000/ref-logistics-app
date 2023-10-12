@@ -19,6 +19,7 @@ import ServiceApi from '../../../../lib/utils/serviceApi';
 import InternalServerError from '../../../../lib/errors/internal-server-error.error';
 import UserService from './user.service';
 import settings from '../../../../lib/bootstrap/settings';
+import Agent from '../../models/agent.model';
 // import sendNotificationEmail from '../../../../lib/email/sendEmail'
 // import {JsonWebToken} from '../../../../lib/authentication/index'
 const userService = new UserService();
@@ -44,7 +45,7 @@ interface ICurrentUser {
   email: string;
   role: IRole;
   enabled: number;
-  isAgentDetialsUpdated?: boolean;
+  isAgentDetailsUpdated?: boolean;
   password?: string;
   failedLoginAttempts: number;
   accountLockedAt: any;
@@ -85,7 +86,7 @@ class AuthenticationService {
         throw new NoRecordFoundError(MESSAGES.MEMBER_NOT_EXISTS);
       } else {
         const timeLapsed = Date.now() - currentUser?.accountLockedAt;
-        if (currentUser?.failedLoginAttempts > 4) {
+        if (currentUser?.failedLoginAttempts > 3) {
           if (timeLapsed < 1800000) throw new BadRequestParameterError(MESSAGES.ACCOUNT_LOCKED);
           else {
             await User.findOneAndUpdate(
@@ -147,7 +148,7 @@ class AuthenticationService {
           { $inc: { failedLoginAttempts: 1 } },
           { new: true },
         );
-        if (updatedUser.failedLoginAttempts > 4) {
+        if (updatedUser.failedLoginAttempts > 3) {
           await User.findOneAndUpdate(
             { email: userEmail },
             { $set: { isAccountLocked: true, accountLockedAt: Date.now() } },
@@ -178,7 +179,7 @@ class AuthenticationService {
         throw new NoRecordFoundError(MESSAGES.MEMBER_NOT_EXISTS);
       } else {
         const timeLapsed = Date.now() - currentUser?.accountLockedAt;
-        if (currentUser?.failedLoginAttempts > 4) {
+        if (currentUser?.failedLoginAttempts > 3) {
           if (timeLapsed < 1800000) throw new BadRequestParameterError(MESSAGES.ACCOUNT_LOCKED);
           else {
             await User.findOneAndUpdate(
@@ -201,6 +202,60 @@ class AuthenticationService {
           { mobile: userPhone },
           { $unset: { failedLoginAttempts: 1, isAccountLocked: 1, accountLockedAt: 1 } },
         );
+        await User.aggregate([
+          {
+            $match: {
+              mobile: userPhone, // Replace with the mobile number you're searching for
+            },
+          },
+          {
+            $lookup: {
+              from: 'agents', // Replace with the actual name of the 'agents' collection
+              localField: '_id',
+              foreignField: 'userId',
+              as: 'agent',
+            },
+          },
+          {
+            $unwind: '$agent', // Since there can be multiple agents for a user, unwind the array
+          },
+          {
+            $lookup: {
+              from: 'tasks', // Replace with the actual name of the 'tasks' collection
+              localField: 'agent._id',
+              foreignField: 'assignee',
+              as: 'tasks',
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              agentId: '$agent._id',
+              hasConfirmedTask: {
+                $anyElementTrue: {
+                  $map: {
+                    input: '$tasks',
+                    as: 'task',
+                    in: '$$task.is_confirmed',
+                  },
+                },
+              },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              agentId: 1,
+              isAvailable: {
+                $cond: {
+                  if: '$hasConfirmedTask',
+                  then: false,
+                  else: true,
+                },
+              },
+            },
+          },
+        ]);
         const tokenPayload = {
           user: {
             id: currentUser._id,
@@ -230,10 +285,16 @@ class AuthenticationService {
           { $inc: { failedLoginAttempts: 1 } },
           { new: true },
         );
-        if (updatedUser.failedLoginAttempts > 4) {
+        if (updatedUser.failedLoginAttempts > 3) {
           await User.findOneAndUpdate(
             { mobile: userPhone },
             { $set: { isAccountLocked: true, accountLockedAt: Date.now() } },
+          );
+          await Agent.findOneAndUpdate(
+            {
+              userId: updatedUser._id,
+            },
+            { $set: { isAvailable: false } },
           );
           throw new BadRequestParameterError(MESSAGES.ACCOUNT_LOCKED);
         }
@@ -404,7 +465,7 @@ class AuthenticationService {
 
   async forgotPassword(email: string) {
     try {
-      const user: any = await User.findOne({ email: email }).populate('role');
+      const user: any = await User.findOne({ email: email, enabled: 1 }).populate('role');
       if (!user) {
         throw new NoRecordFoundError(MESSAGES.USER_NOT_EXISTS);
       }

@@ -126,7 +126,7 @@ export interface On_init {
       provider: {
         id: string
       }
-      provider_location?: OrderLocation
+      provider_location?:OrderLocation
       items: {
         id: string
         fulfillment_id?: string

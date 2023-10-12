@@ -31,8 +31,8 @@ class AuthenticationController {
       const data = req.body;
       const user = await authenticationService.login(data);
       if (user.currentUser.role?.name === 'Agent') {
-        const isAgentDetialsUpdated = await agentService.isAgentDetialsUpdated(user.currentUser._id);
-        user.currentUser.isAgentDetialsUpdated = isAgentDetialsUpdated?.isDetailsUpdated;
+        const isAgentDetailsUpdated = await agentService.isAgentDetailsUpdated(user.currentUser._id);
+        user.currentUser.isAgentDetailsUpdated = isAgentDetailsUpdated?.isDetailsUpdated;
       }
 
       res.json({ data: user, redirect: true });
@@ -58,8 +58,8 @@ class AuthenticationController {
       const data = req.body;
       const user = await authenticationService.googleLogin(data);
       if (user.currentUser.role?.name === 'Agent') {
-        const isAgentDetialsUpdated = await agentService.isAgentDetialsUpdated(user.currentUser._id);
-        user.currentUser.isAgentDetialsUpdated = isAgentDetialsUpdated?.isDetailsUpdated;
+        const isAgentDetailsUpdated = await agentService.isAgentDetailsUpdated(user.currentUser._id);
+        user.currentUser.isAgentDetailsUpdated = isAgentDetailsUpdated?.isDetailsUpdated;
       }
 
       res.json({ data: user });
@@ -184,6 +184,10 @@ class AuthenticationController {
         res.json({ msg: 'Password Updated Successfully', redirect: true });
       }
     } catch (err: any) {
+      if (err.message === 'jwt expired')
+        res.status(401).json({ msg: 'Your Link for the password reset is expired', redirect: false });
+      else if (err.message == 'invalid signature')
+        res.status(401).json({ msg: 'The Token provided is not valid', redirect: false });
       logger.error(`${req.method} ${req.originalUrl} error: ${err.message}`);
       next(err);
     }

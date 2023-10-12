@@ -44,6 +44,7 @@ import healthCheck from '../modules/main/routes/healthCheck.route';
 import taskNotifications from '../modules/main/routes/notification.routes';
 import applicationSetting from '../modules/main/routes/applicationSetting.route';
 import issueRouter from '../modules/main/routes/issue.route';
+import hubsRouter from '../modules/main/routes/hubs.routes';
 
 const routes: Router = Router();
 
@@ -57,4 +58,5 @@ routes.use(taskStatusRouter);
 routes.use(taskNotifications);
 routes.use(applicationSetting);
 routes.use(issueRouter);
+routes.use(hubsRouter);
 export default routes;

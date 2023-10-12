@@ -245,7 +245,7 @@ interface Message {
     state: string | undefined
     provider: {
       id: string
-      locations: {
+      locations?: {
         id: string
       }[]
     }

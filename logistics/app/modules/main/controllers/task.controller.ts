@@ -8,6 +8,8 @@ import NotificationService from '../v1/services/notifications.service';
 import AgentService from '../v1/services/agent.service';
 import logger from '../../../lib/logger';
 import eventEmitter from '../../../lib/utils/eventEmitter';
+import SearchDumpService from '../v1/services/searchDump.service';
+import { processOrders } from '../../../lib/utils/utilityFunctions';
 interface CustomRequest extends Request {
   user?: any;
 }
@@ -16,6 +18,7 @@ const taskService = new TaskService();
 const agentService = new AgentService();
 const taskStatusService = new TaskStatusService();
 const notificationService = new NotificationService();
+const searchDumpService = new SearchDumpService();
 
 const cancellation_terms = [
   {
@@ -220,10 +223,11 @@ class TaskController {
 
   async getAssignedTasks(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
-      const { skip, limit, search }: { skip?: number; limit?: number; search?: string } = req.query;
+      let { skip, limit, search }: { skip?: number; limit?: number; search?: string } = req.query;
       const parsedSkip: number = skip || 0;
       const parsedLimit: number = limit || 10;
-      const { tasks, taskCount } = await taskService.assignedTasks(parsedSkip, parsedLimit, search);
+      const parsedSearch: string = search || '';
+      const { tasks, taskCount } = await taskService.assignedTasks(parsedSkip, parsedLimit, parsedSearch);
       res.status(200).send({
         message: 'Tasks fetched successfully',
         data: {
@@ -239,10 +243,11 @@ class TaskController {
 
   async getUnassignedTasks(req: Request, res: Response, next: NextFunction) {
     try {
-      const { skip, limit, search }: { skip?: number; limit?: number; search?: string } = req.query;
+      let { skip, limit, search }: { skip?: number; limit?: number; search?: string } = req.query;
       const parsedSkip: number = skip || 0;
       const parsedLimit: number = limit || 10;
-      const { tasks, taskCount } = await taskService.unassignedTasks(parsedSkip, parsedLimit, search);
+      const parsedSearch: string = search || '';
+      const { tasks, taskCount } = await taskService.unassignedTasks(parsedSkip, parsedLimit, parsedSearch);
       res.status(200).send({
         message: 'Tasks fetched successfully',
         data: {
@@ -259,9 +264,48 @@ class TaskController {
   async getTask(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
       const { id } = req.params;
-      const task = await taskService.getOne(id);
+      const task: any = await taskService.getOne(id);
       if (task.is_confirmed) {
-        const taskStatus = await taskStatusService.taskStatusByTaskId(`${task._id}`);
+        const taskStatus: any = await taskStatusService.taskStatusByTaskId(`${task._id}`);
+        if (task.items[0].category_id === 'Express Delivery') {
+          const updateTaskStatus: any = processOrders(taskStatus);
+          res.status(200).send({
+            message: 'Task fetched successfully',
+            data: {
+              task,
+              taskStatus: updateTaskStatus,
+            },
+          });
+        }
+
+        res.status(200).send({
+          message: 'Task fetched successfully',
+          data: {
+            task,
+            taskStatus,
+          },
+        });
+      } else {
+        res.status(200).send({
+          message: 'Task fetched successfully',
+          data: {
+            task,
+            taskStatus: [],
+          },
+        });
+      }
+    } catch (error: any) {
+      logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
+      next(error);
+    }
+  }
+
+  async getTaskForAgent(req: Request, res: Response, next: NextFunction): Promise<any> {
+    try {
+      const { id } = req.params;
+      const task: any = await taskService.getOne(id);
+      if (task.is_confirmed) {
+        const taskStatus: any = await taskStatusService.taskStatusByTaskId(`${task._id}`);
         res.status(200).send({
           message: 'Task fetched successfully',
           data: {
@@ -378,6 +422,7 @@ class TaskController {
         const updateStatus = {
           status: 'Agent-assigned',
           taskId: updatedTask._id,
+          agentId: updatedTask.assignee,
         };
         await taskStatusService.create(updateStatus);
         eventEmitter.emit('live_update', { task: 'updated' });
@@ -417,6 +462,7 @@ class TaskController {
         const updateStatus = {
           status: 'Pending',
           taskId: updatedTask._id,
+          agentId: updatedData.agentId,
         };
         await taskStatusService.create(updateStatus);
         eventEmitter.emit('live_update', { task: 'updated' });
@@ -444,8 +490,69 @@ class TaskController {
         };
         await taskStatusService.create(updateStatus);
         eventEmitter.emit('live_update', { task: 'updated' });
+        // const updatedFulfillment = updatedTask?.fulfillments?.map((item: any) => {
+        //   if (item.type === 'Delivery') {
+        //     return {
+        //       ...item,
+        //       tags: [
+        //         {
+        //           code: 'rider_check',
+        //           list: [
+        //             {
+        //               code: 'inline_check_for_rider',
+        //               value: 'yes',
+        //             },
+        //           ],
+        //         },
+        //       ],
+        //     };
+        //   } else {
+        //     return item;
+        //   }
+        // });
 
-        res.status(200).send(updatedTask);
+        // get charge
+
+        const getCharge = await searchDumpService.getSearchDump(updatedTask?.fulfillments[0].id);
+
+        const charge: any = getCharge?.charge?.totalCharge;
+        const tax: any = getCharge?.charge?.tax;
+        const type: any = getCharge?.type;
+        const destinationHub: any = getCharge?.locations?.destinationHub;
+
+        const quote = {
+          price: {
+            currency: 'INR',
+            value: `${(charge + tax).toFixed(2)}`,
+          },
+          breakup: [
+            {
+              '@ondc/org/item_id': type === 'P2H2P' ? 'Express' : 'Standard',
+              '@ondc/org/title_type': (updatedTask?.fulfillments[0].type).toLowerCase(),
+              price: {
+                currency: 'INR',
+                value: `${charge?.toFixed(2)}`,
+              },
+            },
+            {
+              '@ondc/org/item_id': type === 'P2H2P' ? 'Express' : 'Standard',
+              '@ondc/org/title_type': 'tax',
+              price: {
+                currency: 'INR',
+                value: `${tax.toFixed(2)}`,
+              },
+            },
+          ],
+          ttl: 'PT15M',
+        };
+
+        res.status(200).send({
+          ...updatedTask,
+          // fulfillments: updatedFulfillment,
+          quote,
+          type,
+          provider_location: { id: destinationHub?._id },
+        });
       }
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);

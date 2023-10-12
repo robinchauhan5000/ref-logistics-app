@@ -5,9 +5,9 @@ const users =
   env === 'development'
     ? [
         {
-          name: 'Rupinder',
-          firstName: 'Rupinder',
-          lastName: 'singh',
+          name: 'Super User',
+          firstName: 'Superr',
+          lastName: 'User',
           username: adminEmail,
           email: adminEmail,
           roleName: 'Super Admin',
@@ -21,9 +21,9 @@ const users =
       ]
     : [
         {
-          name: 'Rupinder',
-          firstName: 'Rupinder',
-          lastName: 'singh',
+          name: 'Super User',
+          firstName: 'Super',
+          lastName: 'User',
           username: adminEmail,
           email: adminEmail,
           roleName: 'Super Admin',

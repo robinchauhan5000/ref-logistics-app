@@ -65,8 +65,9 @@ class UserController {
       const data = req.user;
       const user = await userService.getProfile(data.user.id);
       if (user?.role?.name === 'Agent') {
-        const isAgentDetialsUpdated = await agentService.isAgentDetialsUpdated(user._id);
-        user.isAgentDetialsUpdated = isAgentDetialsUpdated?.isDetailsUpdated;
+        const isAgentDetailsUpdated = await agentService.isAgentDetailsUpdated(user._id);
+        user.isAgentDetailsUpdated = isAgentDetailsUpdated?.isDetailsUpdated;
+        user.agentId = isAgentDetailsUpdated?._id;
         res.status(200).json({
           data: {
             user: {
@@ -136,7 +137,8 @@ class UserController {
     try {
       const user = req.user.user.id;
       const { skip, limit, search }: { skip?: string; limit?: string; search?: string } = req.query;
-      const { driverList, driverCount } = await userService.getDriverslist(user, skip, limit, search);
+      const parsedSearch: string = search || '';
+      const { driverList, driverCount } = await userService.getDriverslist(user, skip, limit, parsedSearch);
       res.status(200).send({
         msg: 'Drivers fetched successfully',
         data: {
@@ -155,7 +157,8 @@ class UserController {
       const { skip, limit, search }: { skip?: number; limit?: number; search?: string } = req.query;
       const parsedSkip: number = skip || 0;
       const parsedLimit: number = limit || 10;
-      const { admins, adminCount } = await userService.getAdminsList(user, parsedSkip, parsedLimit, search);
+      const parsedSearch: string = search || '';
+      const { admins, adminCount } = await userService.getAdminsList(user, parsedSkip, parsedLimit, parsedSearch);
       res.status(200).send({
         msg: 'Admins fetched successfully',
         data: {
@@ -188,7 +191,7 @@ class UserController {
       const userId = req.user.user.id;
       const data = req.body;
       await userService.updateProfile(userId, data);
-      res.status(200).json({ message: 'Profile updated successfully' });
+      res.status(200).json({ message: 'Personal details updated successfully' });
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
       next(error);
