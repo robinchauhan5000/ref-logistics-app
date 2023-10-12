@@ -11,7 +11,9 @@ const taskStatusSchema = new mongoose.Schema(
       enum: [
         'Pending',
         'Searching-for-Agent',
+        "Order-confirmed",
         'Agent-assigned',
+
         'Order-picked-up',
         'Out-for-delivery',
         'Order-delivered',
@@ -20,6 +22,15 @@ const taskStatusSchema = new mongoose.Schema(
         'RTO-Disposed',
         'Cancelled',
         'Customer-not-found',
+        "Out-for-pickup",
+        "Pickup-failed",
+        "Pickup-rescheduled",
+        "Order-picked-up",
+        "In-transit",
+        "At-destination-hub",
+        "Delivery-failed",
+        "Delivery-rescheduled"
+
       ],
       required: true,
     },
@@ -29,12 +40,16 @@ const taskStatusSchema = new mongoose.Schema(
     description: {
       type: String,
     },
+    agentId: {
+      type: String,
+      ref: 'Agent',
+    }
   },
   {
     strict: true,
     timestamps: true,
   },
 );
-taskStatusSchema.index({ taskId: 1, status: 1 }, { unique: true });
+// taskStatusSchema.index({ taskId: 1, status: 1 , agentId: 1}, { unique: true });
 const TaskStatus = mongoose.model('TaskStatus', taskStatusSchema);
 export default TaskStatus;

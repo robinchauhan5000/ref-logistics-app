@@ -13,7 +13,7 @@ import {
   getTrackOrder,
 } from '../utils/schemaMapping'
 
-import { getInitV2 } from '../utils/schemaMappingV2'
+import { getInitV2, getConfirmV2,getStatusV2 } from '../utils/schemaMappingV2'
 import { getAgentsV2 } from '../utils/schemaMappingV2'
 
 class LogisticsService {
@@ -41,15 +41,14 @@ class LogisticsService {
       },
       fulfillments: [fulfillment],
       payment: {
-        type: payment.type,
-        collection_amount: payment['@ondc/org/collection_amount'],
+        type: payment?.type,
+        collection_amount: payment?.['@ondc/org/collection_amount']
       },
     }
     let apiEndpoint = '/api/v1/logistics/agent/search'
     if (searchRequest.context.core_version === '1.1.0') {
       apiEndpoint = `/api/v2/logistics/agent/search`
     }
-
     const httpRequest = new HttpRequest(
       serverUrl,
       apiEndpoint, //TODO: allow $like query
@@ -92,6 +91,7 @@ class LogisticsService {
         apiEndpoint, //TODO: allow $like query
         'POST',
         {
+          provider,
           billing,
           fulfillments,
           items,
@@ -117,7 +117,6 @@ class LogisticsService {
           message: initRequest.message,
         })
       }
-
       return initData
     } catch (err) {
       return err
@@ -129,16 +128,20 @@ class LogisticsService {
     const headers = {}
 
     const searchParams = confirmRequest.message.order
+    let apiEndpoint = '/api/v1/logistics/task/confirm'
+    if (confirmRequest.context.core_version === '1.1.0') {
+      apiEndpoint = `/api/v2/logistics/task/confirm`
+    }
 
     try {
       const httpRequest = new HttpRequest(
         serverUrl,
-        `/api/v1/logitics/task/confirm`, //TODO: allow $like query
+        apiEndpoint, //TODO: allow $like query
         'PUT',
         {
           ...searchParams,
           payment: {
-            ...searchParams.payment
+            ...searchParams.payment,
           },
 
           linked_order: searchParams['@ondc/org/linked_order'],
@@ -154,12 +157,22 @@ class LogisticsService {
       )
       const result = await httpRequest.send()
       const context = confirmRequest.context
-      const confirmData = await getConfirm({
-        data: result.data,
-        context: { ...context },
-        message: confirmRequest.message,
-        createdAt: confirmRequest.context.timestamp,
-      })
+      let confirmData
+      if (confirmRequest.context.core_version === '1.1.0') {
+        confirmData = await getConfirmV2({
+          data: result.data,
+          context: { ...context },
+          message: confirmRequest.message,
+          createdAt: confirmRequest.context.timestamp,
+        })
+      } else {
+        confirmData = await getConfirm({
+          data: result.data,
+          context: { ...context },
+          message: confirmRequest.message,
+          createdAt: confirmRequest.context.timestamp,
+        })
+      }
       return confirmData
     } catch (err) {
       return err
@@ -198,16 +211,25 @@ class LogisticsService {
         transaction_id: statusRequest.context.transaction_id,
         orderId: statusRequest.message.order_id,
       }
+      let apiEndpoint = '/api/v1/logistics/taskStatus'
+      if (statusRequest.context.core_version === '1.1.0') {
+        apiEndpoint = `/api/v2/logistics/taskStatus`
+      }
       const httpRequest = new HttpRequest(
         serverUrl,
-        `/api/v1/logistics/taskStatus`, //TODO: allow $like query
+        apiEndpoint, //TODO: allow $like query
         'POST',
         statusPayload,
         headers,
       )
       const result = await httpRequest.send()
       const context = statusRequest.context
-      const statusData = await getStatus({ data: result.data, context: { ...context } })
+      let statusData
+      if (statusRequest.context.core_version === '1.1.0') {
+        statusData = await getStatusV2({ data: result.data, context: { ...context } })
+      } else {
+        statusData = await getStatus({ data: result.data, context: { ...context } })
+      }
       return statusData
     } catch (error) {
       return error

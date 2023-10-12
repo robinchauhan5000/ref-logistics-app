@@ -25,6 +25,11 @@ class TaskStatusController {
         if (!task) {
           throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
         }
+        if (task?.items[0]?.descriptor?.code === "P2H2P" && task.failedDeliveryCount <= 3) {
+          console.log("Delivery failed, please reschedule")
+          const updatedTask = await taskService.updateStatus(data.taskId, "Delivery-failed");
+          console.log({ updatedTask })
+        }
 
         let tags = task?.fulfillments[0]?.tags;
         tags = tags.filter((obj: any) => obj?.code === 'rto_action');
@@ -49,30 +54,31 @@ class TaskStatusController {
               : 'This order is RTO-Disposed',
         });
       } else {
-        const savedTask = await taskStatusService.create(data);
-        if (savedTask) {
-          const updatedTask = await taskService.updateStatus(data.taskId, data.status);
-          const notificationData = {
-            type: 'Task',
-            typeId: updatedTask._id,
-            status: 'Unread',
-            userId: updatedTask.assignedBy,
-            text: updatedTask.status,
-          };
-          await notificationService.create(notificationData);
-          const headers = {};
-          const onStatusPayload = await modifyPayload.status(updatedTask);
-          const httpRequest = new HttpRequest(
-            `${clientURL}/protocol/v1/status`, //TODO: allow $like query
-            'POST',
-            onStatusPayload,
-            headers,
-          );
-          httpRequest.send();
-          res.status(200).send({
-            message: 'Status updated successfully.',
-          });
-        }
+        // const taskStatusCheck = await taskStatusService.taskStatusByTaskIdAndStatus(data.taskId, "In-transit")
+
+        const updatedTask = await taskService.updateStatus(data.taskId, data.status);
+        await taskStatusService.create(data);
+        const notificationData = {
+          type: 'Task',
+          typeId: updatedTask._id,
+          status: 'Unread',
+          userId: updatedTask.assignedBy,
+          text: updatedTask.status,
+        };
+        await notificationService.create(notificationData);
+        const headers = {};
+        const onStatusPayload = await modifyPayload.status(updatedTask);
+        const httpRequest = new HttpRequest(
+          `${clientURL}/protocol/v1/status`, //TODO: allow $like query
+          'POST',
+          onStatusPayload,
+          headers,
+        );
+        httpRequest.send();
+        res.status(200).send({
+          message: 'Status updated successfully.',
+        });
+
       }
     } catch (error: any) {
       console.log({ error });
@@ -100,6 +106,7 @@ class TaskStatusController {
   async getTaskStatusById(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
       const { id } = req.params;
+
       const taskStatus = await taskStatusService.getTaskStatusById(id);
       const task = await taskService.getOne(id);
       if (taskStatus && task) {

@@ -19,7 +19,7 @@ interface ICurrentUser {
   email: string;
   role: IRole;
   enabled: number;
-  isAgentDetialsUpdated?: boolean;
+  isAgentDetailsUpdated?: boolean;
   password?: string;
   activeToken?: string;
 }

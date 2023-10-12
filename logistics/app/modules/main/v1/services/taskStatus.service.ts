@@ -9,12 +9,17 @@ import { LinkExpired } from '../../../../lib/errors/index';
 class TaskStatusService {
   async create(data: any): Promise<any> {
     try {
+      // const getTaskStatus = await TaskStatus.findOne({ taskId: data.taskId, status: data.status }).lean();
+      // if (getTaskStatus) {
+      //   return true;
+      // }
       const taskStatus = new TaskStatus(data);
       const savedObj = await taskStatus.save();
       if (savedObj) {
         return true;
       }
     } catch (error: any) {
+      console.log({error})
       if (error.status === 409) {
         throw error;
       } else {
@@ -30,6 +35,19 @@ class TaskStatusService {
         throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
       }
 
+      return taskStatusList;
+    } catch (error: any) {
+      if (error.status === 404 || error.status === 401) {
+        throw error;
+      } else {
+        throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
+    async taskStatusByTaskIdAndStatus(taskId: string, status:string) {
+    try {
+      const taskStatusList = await TaskStatus.findOne({ taskId, status }).sort({ createdAt: 1 });
       return taskStatusList;
     } catch (error: any) {
       if (error.status === 404 || error.status === 401) {

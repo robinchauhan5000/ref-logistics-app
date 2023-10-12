@@ -81,7 +81,8 @@ class IssueController {
       const { skip, limit, search }: { skip?: number; limit?: number; search?: string } = req.query;
       const parsedSkip: number = skip || 0;
       const parsedLimit: number = limit || 10;
-      const issueList = await issueServie.allIssues(parsedSkip, parsedLimit, search);
+      const parsedSearch: string = search || '';
+      const issueList = await issueServie.allIssues(parsedSkip, parsedLimit, parsedSearch);
       res.status(200).send({
         message: 'Issues fetched successfully',
         data: {

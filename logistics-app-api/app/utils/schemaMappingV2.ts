@@ -2,6 +2,7 @@ const BPP_ID = process.env.BPP_ID
 const BPP_URI = process.env.BPP_URI
 import { On_search } from './interfaces/onSearchInterface'
 import { On_initV2 } from './interfaces/onInitInterfaceV2'
+import { On_confirm } from './interfaces/onConfirmInterfaceV2'
 import { removeIdKeys, formatedDate, calculateDeliveryCharges } from '../utils/utilityFunctions'
 const descriptorName = 'WITS Project Ref Logistic'
 import { uuid } from 'uuidv4'
@@ -9,6 +10,24 @@ import { uuid } from 'uuidv4'
 // import { uuid } from 'uuidv4'
 const long_desc = 'WITS Project Ref Logistic'
 const short_desc = 'WITS Project Ref Logistic'
+const states = [
+  {
+    key: 'Accepted',
+    possibleStates: ['Created', 'Accepted', 'Pending'],
+  },
+  {
+    key: 'In-progress',
+    possibleStates: ['Searching-for-Agent', 'Agent-assigned', 'Order-picked-up', 'Out-for-delivery'],
+  },
+  {
+    key: 'Completed',
+    possibleStates: ['Order-delivered'],
+  },
+  {
+    key: 'Cancelled',
+    possibleStates: ['Cancelled', 'RTO-Initiated', 'RTO-Delivered', 'RTO-Disposed', 'Customer-not-found'],
+  },
+]
 
 export const getAgentsV2 = async (data: any) => {
   const startLocation = data.fulfillment.start.location.gps.split(',')
@@ -19,6 +38,7 @@ export const getAgentsV2 = async (data: any) => {
   context.bpp_uri = BPP_URI
   context.action = 'on_search'
   delete context.ttl
+  console.log(`on_search context:------------------------------ ${context}`);
 
   // const calculatedResult = calculateDeliveryCharges(lat1, lon1, lat2, lon2, basePrice, perKM)
   const schema: On_search = {
@@ -89,7 +109,7 @@ export const getAgentsV2 = async (data: any) => {
                 id: 'express',
                 parent_item_id: '',
                 category_id: 'Immediate Delivery',
-                fulfillment_id: data?.data?.fulfillment_id,
+                fulfillment_id: data?.data?.delivery_id,
                 descriptor: {
                   code: 'P2P',
                   name: 'Immediate Delivery',
@@ -183,7 +203,7 @@ export const getInitV2 = async (data: any) => {
             },
             breakup: [
               {
-                '@ondc/org/item_id': 'I1',
+                '@ondc/org/item_id': 'express',
                 '@ondc/org/title_type': 'Delivery Charge',
                 price: {
                   currency: 'INR',
@@ -191,7 +211,7 @@ export const getInitV2 = async (data: any) => {
                 },
               },
               {
-                '@ondc/org/item_id': 'I1',
+                '@ondc/org/item_id': 'express',
                 '@ondc/org/title_type': 'Tax',
                 price: {
                   currency: 'INR',
@@ -203,19 +223,19 @@ export const getInitV2 = async (data: any) => {
           payment: {
             type: 'ON-FULFILLMENT',
             collected_by: 'BPP',
-            '@ondc/org/settlement_details': [
-              {
-                settlement_counterparty:
-                  data?.message?.order?.payment['@ondc/org/settlement_details'][0].settlement_counterparty,
-                settlement_type: data?.message?.order?.payment['@ondc/org/settlement_details'][0].upi,
-                beneficiary_name: 'xxxxx',
-                upi_address: data?.message?.order?.payment['@ondc/org/settlement_details'][0].upi_address,
-                settlement_bank_account_no:
-                  data?.message?.order?.payment['@ondc/org/settlement_details'][0].settlement_bank_account_no,
-                settlement_ifsc_code:
-                  data?.message?.order?.payment['@ondc/org/settlement_details'][0].settlement_ifsc_code,
-              },
-            ],
+            // '@ondc/org/settlement_details': [
+            //   {
+            //     settlement_counterparty:
+            //       data?.message?.order?.payment['@ondc/org/settlement_details'][0].settlement_counterparty,
+            //     settlement_type: data?.message?.order?.payment['@ondc/org/settlement_details'][0].upi,
+            //     beneficiary_name: 'xxxxx',
+            //     upi_address: data?.message?.order?.payment['@ondc/org/settlement_details'][0].upi_address,
+            //     settlement_bank_account_no:
+            //       data?.message?.order?.payment['@ondc/org/settlement_details'][0].settlement_bank_account_no,
+            //     settlement_ifsc_code:
+            //       data?.message?.order?.payment['@ondc/org/settlement_details'][0].settlement_ifsc_code,
+            //   },
+            // ],
           },
         },
       },
@@ -224,4 +244,92 @@ export const getInitV2 = async (data: any) => {
   } catch (error) {
     console.log('ERROR : : :  : :', error)
   }
+}
+
+export const getConfirmV2 = async (data: any) => {
+  try {
+    console.log('In schema maping V2')
+    const { context } = data
+    context.timestamp = new Date().toISOString()
+    context.bpp_id = BPP_ID
+    context.bpp_uri = BPP_URI
+    context.action = 'on_confirm'
+    delete context.ttl
+    const { billing, fulfillments, provider, items, quote, order_id } = data.data.task
+    fulfillments[0].state.descriptor.code = 'Pending'
+    delete fulfillments[0]?.agent
+    delete fulfillments[0]?.vehicle
+    delete fulfillments[0]?.['@ondc/org/awb_no']
+    delete fulfillments[0]?.start?.instructions
+    delete fulfillments[0]?.end?.instructions
+    delete fulfillments[0]?.tags
+    const schema: On_confirm = {
+      context,
+      message: {
+        order: {
+          id: order_id,
+          state: 'Accepted',
+          provider,
+          items,
+          quote,
+          fulfillments,
+          billing,
+          created_at: data.createdAt,
+          updated_at: data.context.timestamp,
+        },
+      },
+    }
+    return removeIdKeys(schema)
+  } catch (error) {
+    console.log('ERROR: ', error)
+  }
+}
+
+export const getStatusV2 = async (data: any) => {
+  data.context.timestamp = new Date().toISOString()
+
+  const context = data.context
+  context.bpp_id = BPP_ID
+  context.bpp_uri = BPP_URI
+  context.action = 'on_status'
+  delete context.ttl
+
+  const { order_id, status, items, quote, fulfillments, billing, provider, payment } = data?.data?.data
+
+  const taskState = states?.find((obj: any) => {
+    return obj?.possibleStates?.includes(status)
+  })
+
+  delete payment?.['@ondc/org/settlement_details']
+  const updatedFulfillment = fulfillments?.map((item: any) => {
+    if (item.type === 'CoD' || item.type === 'Prepaid') {
+      item.vehicle.size = 'small'
+      item.vehicle.category = 'mini-truck'
+      delete item.tags
+      delete item?.['@ondc/org/awb_no']
+      delete item?.end?.instructions
+      delete item?.start?.instructions
+      return item
+    } else {
+      return item
+    }
+  })
+
+  const schema: any = {
+    context,
+    message: {
+      order: {
+        id: order_id,
+        state: taskState?.key,
+        provider: provider,
+        items: items,
+        quote: quote,
+        fulfillments: updatedFulfillment,
+        payment,
+        billing: billing,
+      },
+    },
+  }
+
+  return removeIdKeys(schema)
 }

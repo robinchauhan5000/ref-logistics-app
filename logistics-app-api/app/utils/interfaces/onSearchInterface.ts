@@ -94,8 +94,8 @@ export interface On_search {
     message_id: string
     timestamp: string
   }
-  message: {
-    catalog: Catalog
+  message?: {
+    catalog?: Catalog
   }
   error?: {
     type: string

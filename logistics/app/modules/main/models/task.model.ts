@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import { uuid } from 'uuidv4';
 
 // start: fulfillment schema
@@ -37,15 +37,16 @@ const dimensionSchema = new mongoose.Schema({
     },
   },
 });
-const tagSchema = new mongoose.Schema({
-  code: { type: String },
-  list: [
-    {
-      code: { type: String },
-      value: { type: String },
-    },
-  ],
-});
+// const tagSchema = new mongoose.Schema({
+//   code: { type: String },
+//   list: [
+//     {
+//       code: { type: String },
+//       value: { type: String },
+//     },
+//   ],
+// });
+
 
 const address = new mongoose.Schema({
   time: {
@@ -74,6 +75,11 @@ const address = new mongoose.Schema({
   instructions: {
     code: { type: String },
     short_desc: { type: String },
+    additional_desc: {
+      content_type: { type: String },
+      url: { type: String },
+    },
+    images: [{type: String}]
   },
 });
 const fulfillmentSchema = new mongoose.Schema({
@@ -93,7 +99,7 @@ const fulfillmentSchema = new mongoose.Schema({
   end: {
     type: address,
   },
-  tags: [{ type: tagSchema }],
+  tags: [{ type: Schema.Types.Mixed }],
   agent: { name: { type: String }, mobile: { type: String } },
   vehicle: { registration: { type: String } },
   tracking: { type: Boolean },
@@ -113,6 +119,15 @@ const fulfillmentSchema = new mongoose.Schema({
           'RTO-Disposed',
           'Cancelled',
           'Customer-not-found',
+          'At-destination-hub',
+          'Out-for-pickup',
+          'Pickup-failed',
+          'Pickup-rescheduled',
+          'In-transit',
+          'At-destination-hub',
+          'Delivery-failed',
+          'Delivery-rescheduled',
+          'Out-for-pickup',
         ],
       },
     },
@@ -244,6 +259,13 @@ const taskSchema = new mongoose.Schema(
         'RTO-Disposed',
         'Cancelled',
         'Customer-not-found',
+        'Out-for-pickup',
+        'Pickup-failed',
+        'Pickup-rescheduled',
+        'In-transit',
+        'At-destination-hub',
+        'Delivery-failed',
+        'Delivery-rescheduled',
       ],
       default: 'Pending',
     },
@@ -305,7 +327,7 @@ const taskSchema = new mongoose.Schema(
         },
       },
     },
-    tags: [{ type: tagSchema }],
+    tags: [{ type: Schema.Types.Mixed }],
     assignedBy: {
       type: String,
       ref: 'User',
@@ -332,6 +354,11 @@ const taskSchema = new mongoose.Schema(
     ],
     provider: {
       id: { type: String },
+      // locations: [
+      //   {
+      //     id: String,
+      //   },
+      // ],
     },
     provider_location: {
       id: { type: String },
@@ -342,6 +369,9 @@ const taskSchema = new mongoose.Schema(
     },
     WeightDiff: [],
     trackStatus: { type: String, default: 'inactive' },
+    otherFulfillments: [{}],
+    failedDeliveryCount:{type: Number, default: 0},
+    failedPickupCount:{type: Number, default: 0},
   },
   {
     timestamps: true,

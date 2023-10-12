@@ -14,11 +14,22 @@ class AgentContoller {
       const agents = await agentService.getAgentList(searchPayload);
       const startGPS = searchPayload?.fulfillments[0]?.start?.location?.gps.split(',');
       const endGPS = searchPayload?.fulfillments[0]?.start?.location?.gps.split(',');
-      const { delivery_id, RTO_id } = getSearchResponse(startGPS, endGPS, agents[0]);
-      await searchDumpService.create({ delivery: delivery_id, rto: RTO_id });
+      
+      const weight = searchPayload?.linked_orders?.order.weight;
+      const dimentions = searchPayload?.linked_order?.order.dimentions;
+      const category = searchPayload.category;
+      const { delivery_id, RTO_id, total_charge } = await getSearchResponse(
+        startGPS,
+        endGPS,
+        agents[0],
+        weight,
+        dimentions,
+        category,
+      );
+      await searchDumpService.create({ delivery: delivery_id, rto: RTO_id, charge: { charge: total_charge }});
 
       //calculate distcance and price
-      res.send({ data: agents, delivery_id, RTO_id });
+      res.send({ data: agents, delivery_id, RTO_id, total_charge });
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
       next(error);

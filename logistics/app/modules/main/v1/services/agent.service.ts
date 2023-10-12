@@ -45,7 +45,7 @@ class AgentService {
     }
   }
 
-  async isAgentDetialsUpdated(userId: string) {
+  async isAgentDetailsUpdated(userId: string) {
     try {
       const agent = await Agent.findOne({ userId: userId }).select('isDetailsUpdated');
       return agent;
@@ -59,7 +59,7 @@ class AgentService {
       const user: any = await Agent.findById(agentId).populate({ path: 'userId', select: 'name' });
       if (data?.lastName || data?.firstName) {
         await User.findByIdAndUpdate(user?.userId?._id, {
-          $set: { name: data?.firstName, firstName: data?.firstName, lastName: data?.lastName },
+          $set: { name: `${data?.firstName } ${data?.lastName}`, firstName: data?.firstName, lastName: data?.lastName },
         });
       }
 
@@ -95,7 +95,10 @@ class AgentService {
           },
         },
       };
-      const agents = await Agent.find(query, { userId: 1 }).populate({ path: 'userId', select: 'name mobile email' });
+      const agents = await Agent.find(query)
+        .select('userId vehicleDetails.vehicleNumber')
+        .populate({ path: 'userId', select: 'name mobile email vehicleDetails.vehicleNumber' })
+        .lean();
       const agentCount = await Agent.find(query).count();
       if (!agents) {
         throw new NoRecordFoundError(MESSAGES.USER_NOT_EXISTS);
@@ -136,9 +139,10 @@ class AgentService {
         .populate({ path: 'userId', select: 'name enabled' })
         .select('userId addressDetails basePrice pricePerkilometer')
         .limit(1);
-      const activeAgents = agents.filter((agent: any) => agent.userId.enabled === 1);
+      const activeAgents = agents?.filter((agent: any) => agent.userId.enabled === 1);
       return activeAgents;
     } catch (error: any) {
+      console.log({ error });
       if (error.status === 404 || error.status === 401) {
         throw error;
       } else {
@@ -270,6 +274,14 @@ class AgentService {
         if (userTask?.length) {
           throw new WarningError(MESSAGES.DELETE_AGENT_ERROR);
         } else {
+          if (enabled === 1) {
+            await User.findOneAndUpdate(
+              {
+                _id: agentDetails.userId,
+              },
+              { $unset: { failedLoginAttempts: 1, isAccountLocked: 1, accountLockedAt: 1 } },
+            );
+          }
           await User.findOneAndUpdate(
             {
               _id: agentDetails.userId,
@@ -352,6 +364,13 @@ class AgentService {
         },
       );
       return updatedAgent;
+    } catch (error) {
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+    }
+  }
+  async markOnlineOrOffline(status: boolean) {
+    try {
+      return await Agent.updateMany({}, { $set: { isOnline: status, isAvailable: status } });
     } catch (error) {
       throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     }

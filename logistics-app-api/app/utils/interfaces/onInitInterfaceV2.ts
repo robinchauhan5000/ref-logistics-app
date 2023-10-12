@@ -25,7 +25,7 @@ interface Breakup {
 interface OrderPayment {
   type: string
   collected_by: string
-  '@ondc/org/settlement_details': {
+  '@ondc/org/settlement_details'?: {
     settlement_counterparty: string
     settlement_type: string
     beneficiary_name: string

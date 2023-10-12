@@ -6,6 +6,8 @@ import logger from '../../../lib/logger';
 import eventEmitter from '../../../lib/utils/eventEmitter';
 import { getSearchResponse } from '../../../lib/utils/utilityFunctions';
 import SearchDumpService from '../v1/services/searchDump.service';
+import HubsService from '../v1/services/hubs.service';
+import getDistance2 from '../../../lib/utils/distanceCalculation.util';
 interface RequestExtended extends Request {
   user?: any;
 }
@@ -14,18 +16,168 @@ interface RequestExtended extends Request {
 const agentService = new AgentService();
 const taskService = new TaskService();
 const searchDumpService = new SearchDumpService();
+const hubsService = new HubsService();
+const descriptorName = 'WITS Project Ref Logistic';
+const long_desc = 'WITS Project Ref Logistic';
+const short_desc = 'WITS Project Ref Logistic';
 class AgentContoller {
   async searchAgent(req: Request, res: Response, next: NextFunction) {
     try {
       const searchPayload = req.body;
-      const agents = await agentService.getAgentList(searchPayload);
-      const startGPS = searchPayload?.fulfillments[0]?.start?.location?.gps.split(',');
-      const endGPS = searchPayload?.fulfillments[0]?.start?.location?.gps.split(',');
-      const { delivery_id, RTO_id } = getSearchResponse(startGPS, endGPS, agents[0]);
-      await searchDumpService.create({ delivery: delivery_id, rto: RTO_id });
 
-      //calculate distcance and price
-      res.send({ data: agents, delivery_id, RTO_id });
+      const startGPS = searchPayload?.fulfillments[0]?.start?.location?.gps.split(',');
+      const endGPS = searchPayload?.fulfillments[0]?.end?.location?.gps.split(',');
+
+      const weight = searchPayload?.linked_order?.order.weight;
+
+      const dimensions = searchPayload?.linked_order?.order.dimensions;
+      const fulfillmentType =searchPayload?.fulfillments[0]?.type;
+
+      const category = searchPayload?.category;
+      const distance = await getDistance2(startGPS, endGPS);
+      if (distance > 25) {
+        if (category.id === 'Express Delivery') {
+          const type = 'P2H2P';
+          // check hub for pickup location
+          const pickupPincode = searchPayload?.fulfillments[0]?.start?.location?.address?.area_code;
+          const sourceHub = await hubsService.getHubByPincode(parseInt(pickupPincode));
+          if (!sourceHub) {
+            res.send({
+              data: {
+                error: {
+                  type: 'DOMAIN-ERROR',
+                  code: '60001',
+                  message: 'Pickup location not serviceable by Logistics Provider',
+                },
+              },
+            });
+          }
+          const dropPincode = searchPayload?.fulfillments[0]?.end?.location?.address?.area_code;
+          const destinationHub: any = await hubsService.getHubByPincode(parseInt(dropPincode));
+          if (!destinationHub) {
+            res.send({
+              data: {
+                error: {
+                  type: 'DOMAIN-ERROR',
+                  code: '60002',
+                  message: 'Dropoff location not serviceable by Logistics Provider',
+                },
+              },
+            });
+          }
+          const agents = await agentService.getAgentList(searchPayload);
+
+          if (agents.length === 0) {
+            res.send({
+              data: {
+                error: {
+                  type: 'DOMAIN-ERROR',
+                  code: '60004',
+                  message: 'Delivery Partners not available',
+                },
+              },
+            });
+          }
+
+          const { responseData, delivery_id, RTO_id, taxPrice, weightPrice, total_charge } = await getSearchResponse(
+            startGPS,
+            endGPS,
+            agents[0],
+            weight,
+            dimensions,
+            category.id,
+            fulfillmentType,
+            type,
+            // destinationHub
+          );
+          await searchDumpService.create({
+            delivery: delivery_id,
+            rto: RTO_id,
+            charge: {
+              tax: taxPrice,
+              charge: 124,
+              weightPrice: weightPrice,
+              totalCharge: total_charge,
+            },
+            type: 'P2H2P',
+            locations: {
+              sourceHub,
+              destinationHub,
+            },
+          });
+
+          res.send({
+            data: {
+              id: agents[0]._id,
+              descriptor: {
+                name: descriptorName,
+                long_desc: long_desc,
+                short_desc: short_desc,
+              },
+              ...responseData,
+            },
+          });
+        }
+      }
+      else if (distance < 5) {
+        
+        const agents = await agentService.getAgentList(searchPayload);
+
+        if (agents.length === 0) {
+          res.send({
+            data: {
+              error: {
+                type: 'DOMAIN-ERROR',
+                code: '60001',
+                message: 'Pickup location not serviceable by Logistics Provider',
+              },
+            },
+          });
+        }
+
+        const { delivery_id, RTO_id, total_charge, weightPrice, taxPrice, responseData } = await getSearchResponse(
+          startGPS,
+          endGPS,
+          agents[0],
+          weight,
+          dimensions,
+          category.id,
+          fulfillmentType
+        );
+
+        await searchDumpService.create({
+          delivery: delivery_id,
+          rto: RTO_id,
+          charge: {
+            tax: taxPrice,
+            weightPrice: weightPrice,
+            totalCharge: total_charge,
+          },
+          type: 'P2P',
+        });
+
+        res.send({
+          data: {
+            id: agents[0]._id,
+            descriptor: {
+              name: descriptorName,
+              long_desc: long_desc,
+              short_desc: short_desc,
+            },
+            ...responseData,
+          },
+        });
+      } else {
+        res.send({
+          data: {
+            error: {
+              type: 'DOMAIN-ERROR',
+              code: '60003',
+              message: 'Delivery distance exceeds the maximum serviceability distance',
+            },
+          },
+        });
+      }
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
       next(error);
@@ -116,6 +268,23 @@ class AgentContoller {
         message: 'List found',
         data: {
           tasks,
+        },
+      });
+    } catch (error: any) {
+      logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
+      next(error);
+    }
+  }
+
+  async markOnlineOrOffline(req: Request, res: Response, next: NextFunction) {
+    try {
+      const status: boolean = req.body.status;
+      await agentService.markOnlineOrOffline(status);
+
+      res.status(200).send({
+        message: `Driver's status changed to ${status}`,
+        data: {
+          status,
         },
       });
     } catch (error: any) {

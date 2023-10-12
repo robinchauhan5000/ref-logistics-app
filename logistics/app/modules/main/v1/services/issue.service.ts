@@ -30,7 +30,7 @@ class IssueService {
       }
     }
   }
-  async allIssues(parsedSkip: number, parsedLimit: number, searchString: string | undefined): Promise<any> {
+  async allIssues(parsedSkip: number, parsedLimit: number, searchString?: string | undefined): Promise<any> {
     try {
       const issueList = await Issue.find({
         $or: [{ id: { $regex: searchString, $options: 'i' } }, { category: { $regex: searchString, $options: 'i' } }],

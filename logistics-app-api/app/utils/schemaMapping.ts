@@ -6,15 +6,18 @@ import { On_init } from './interfaces/onInitInterface'
 import { On_search } from './interfaces/onSearchInterface'
 import { On_update } from './interfaces/onUpdateInterface'
 
-import { removeIdKeys, formatedDate, calculateDeliveryCharges } from '../utils/utilityFunctions'
+import {
+  removeIdKeys,
+  //  calculateDeliveryCharges
+} from '../utils/utilityFunctions'
 import { On_Track } from './interfaces/onTrackInterface'
 
 const BPP_ID = process.env.BPP_ID
 const BPP_URI = process.env.BPP_URI
 // const providers = 'https://logistics-dev.thewitslab.com/'
 const descriptorName = 'WITS Project Ref Logistic'
-const long_desc = 'WITS Project Ref Logistic'
-const short_desc = 'WITS Project Ref Logistic'
+// const long_desc = 'WITS Project Ref Logistic'
+// const short_desc = 'WITS Project Ref Logistic'
 
 const states = [
   {
@@ -23,11 +26,23 @@ const states = [
   },
   {
     key: 'In-progress',
-    possibleStates: ['Searching-for-Agent', 'Agent-assigned', 'Order-picked-up', 'Out-for-delivery'],
+    possibleStates: [
+      'Searching-for-Agent',
+      'Agent-assigned',
+      'Order-picked-up',
+      'Out-for-delivery',
+      'Out-for-pickup',
+      'Pickup-failed',
+      'Pickup-rescheduled',
+      'In-transit',
+      'At-destination-hub',
+      'Delivery-failed',
+      'Delivery-rescheduled',
+    ],
   },
   {
     key: 'Completed',
-    possibleStates: ['Order-delivered'],
+    possibleStates: ['Order-delivered', 'Completed'],
   },
   {
     key: 'Cancelled',
@@ -38,12 +53,20 @@ const states = [
 export const getAgents = async (data: any) => {
   data.context.timestamp = new Date().toISOString()
   const context = data.context
-  const startLocation = data.fulfillment.start.location.gps.split(',')
-  const endLocation = data.fulfillment.end.location.gps.split(',')
+  // const startLocation = data.fulfillment.start.location.gps.split(',')
+  // const endLocation = data.fulfillment.end.location.gps.split(',')
   context.bpp_id = BPP_ID
   context.bpp_uri = BPP_URI
   context.action = 'on_search'
   delete context.ttl
+    if (data.data.data.error) {
+    const schema: On_search = {
+      context,
+      error: data.data.data.error
+    }
+    return removeIdKeys(schema)
+  }
+
   // const calculatedResult = calculateDeliveryCharges(lat1, lon1, lat2, lon2, basePrice, perKM)
   const schema: On_search = {
     context,
@@ -52,209 +75,86 @@ export const getAgents = async (data: any) => {
         'bpp/descriptor': {
           name: descriptorName,
         },
-        'bpp/providers': data?.data?.data.map((agent: any) => {
-          // create your logic to calculate price
-          const { charge, tax, distance } = calculateDeliveryCharges(
-            startLocation[0],
-            startLocation[1],
-            endLocation[0],
-            endLocation[1],
-            agent.basePrice,
-            agent.pricePerkilometer,
-          )
-          return {
-            id: agent._id,
-            descriptor: {
-              name: descriptorName,
-              long_desc: long_desc,
-              short_desc: short_desc,
-            },
-            categories: [
-              {
-                id: 'Immediate Delivery',
-                time: {
-                  //category level TAT for S2D (ship-to-delivery), can be overridden by item-level TAT whenever there are multiple options for the same category (e.g. 30 min, 45 min, 60 min, etc.);
-                  label: 'TAT',
-                  duration: 'PT60M',
-                  timestamp: formatedDate(context.timestamp),
-                },
-              },
-            ],
-            fulfillments: [
-              {
-                id: data?.data?.delivery_id,
-                type: 'Delivery',
-                start: {
-                  time: {
-                    // average time to pickup (ISO8601 Duration);
-                    duration: 'PT15M',
-                  },
-                },
-                tags: [
-                  {
-                    code: 'distance',
-                    list: [
-                      {
-                        code: 'motorable_distance_type',
-                        value: 'kilometer', //enum - "mile", "kilometer", "meter";
-                      },
-                      {
-                        code: 'motorable_distance',
-                        value: `${distance}`,
-                      },
-                    ],
-                  },
-                ],
-              },
-              {
-                id: data?.data?.RTO_id,
-                type: 'RTO',
-              },
-            ],
-
-            items: [
-              {
-                id: 'express',
-                parent_item_id: '',
-                category_id: 'Immediate Delivery',
-                fulfillment_id: data?.data?.delivery_id,
-                descriptor: {
-                  code: 'P2P',
-                  name: 'Immediate Delivery',
-                  long_desc: 'Upto 60 mins for Delivery',
-                  short_desc: 'Upto 60 mins for Delivery',
-                },
-                price: {
-                  currency: 'INR',
-                  value: `${(charge + tax).toFixed(2)}`,
-                },
-                time: {
-                  label: 'TAT',
-                  duration: 'PT60M',
-                  timestamp: formatedDate(context.timestamp),
-                },
-              },
-              {
-                id: 'rto',
-                parent_item_id: 'express',
-                category_id: 'Immediate Delivery',
-                fulfillment_id: data?.data?.RTO_id,
-                descriptor: {
-                  code: 'P2P',
-                  name: 'RTO quote',
-                  short_desc: 'RTO quote',
-                  long_desc: 'RTO quote',
-                },
-                price: {
-                  currency: 'INR',
-                  value: `${(((charge + tax) * 30) / 100).toFixed(2)}`,
-                },
-                time: {
-                  label: 'TAT',
-                  duration: 'PT60M',
-                  timestamp: formatedDate(context.timestamp),
-                },
-              },
-            ],
-          }
-        }),
+        'bpp/providers': [data?.data?.data],
       },
     },
   }
-  if (data.data.data.length === 0) {
-    schema.error = {
-      type: 'DOMAIN-ERROR',
-      code: '60001',
-      message: 'Pickup location not serviceable by Logistics Provider',
-    }
-  }
+  // if (data.data.data.length === 0) {
+  //   schema.error = {
+  //     type: 'DOMAIN-ERROR',
+  //     code: '60001',
+  //     message: 'Pickup location not serviceable by Logistics Provider',
+  //   }
+  // }
 
   return removeIdKeys(schema)
 }
 
 export const getInit = async (data: any) => {
-  data.context.timestamp = new Date().toISOString()
-  const context = data.context
-  context.action = 'on_init'
-  delete context.ttl
+  try {
+    data.context.timestamp = new Date().toISOString()
+    const context = data.context
+    context.action = 'on_init'
+    delete context.ttl
 
-  // const { items } = data.message?.order
-  const { tags, cancellation_terms, assignee, fulfillments, payment, items } = data.data
-  const startLocation = fulfillments[0].start.location.gps.split(',')
-  const endLocation = fulfillments[0].end.location.gps.split(',')
+    // const { items } = data.message?.order
+    const { tags, cancellation_terms, assignee, fulfillments, payment, items, quote } =
+      data.data
+    // const startLocation = fulfillments[0].start.location.gps.split(',')
+    // const endLocation = fulfillments[0].end.location.gps.split(',')
 
-  const { charge, tax } = calculateDeliveryCharges(
-    startLocation[0],
-    startLocation[1],
-    endLocation[0],
-    endLocation[1],
-    data.data.assignee.basePrice,
-    data.data.assignee.pricePerkilometer,
-  )
-
-  const paymentResponse = payment
-  const updatedFulfillment = fulfillments?.map((item: any) => {
-    if (item.type === 'Delivery') {
-      return {
-        ...item,
-        tags: [
-          {
-            code: 'rider_check',
-            list: [
-              {
-                code: 'inline_check_for_rider',
-                value: 'yes',
-              },
-            ],
-          },
-        ],
-      }
-    } else {
-      return item
-    }
-  })
-
-  const schema: On_init = {
-    context,
-    message: {
-      order: {
-        provider: {
-          id: assignee._id,
-        },
-        items: items,
-        fulfillments: updatedFulfillment,
-        quote: {
-          price: {
-            currency: 'INR',
-            value: `${(charge + tax).toFixed(2)}`,
-          },
-          breakup: [
+    // const { charge, tax } = calculateDeliveryCharges(
+    //   startLocation[0],
+    //   startLocation[1],
+    //   endLocation[0],
+    //   endLocation[1],
+    //   data.data.assignee.basePrice,
+    //   data.data.assignee.pricePerkilometer,
+    // )
+    const paymentResponse = payment
+    const updatedFulfillment = fulfillments?.map((item: any) => {
+      if (item.type === 'Delivery') {
+        return {
+          ...item,
+          tags: [
             {
-              '@ondc/org/item_id': 'express',
-              '@ondc/org/title_type': 'delivery',
-              price: {
-                currency: 'INR',
-                value: `${charge.toFixed(2)}`,
-              },
-            },
-            {
-              '@ondc/org/item_id': 'express',
-              '@ondc/org/title_type': 'tax',
-              price: {
-                currency: 'INR',
-                value: `${tax.toFixed(2)}`,
-              },
+              code: 'rider_check',
+              list: [
+                {
+                  code: 'inline_check_for_rider',
+                  value: 'yes',
+                },
+              ],
             },
           ],
-          ttl: 'PT15M',
+        }
+      } else {
+        return item
+      }
+    })
+
+    const schema: On_init = {
+      context,
+      message: {
+        order: {
+          provider: {
+            id: assignee._id,
+          },
+          items: items,
+          fulfillments: updatedFulfillment,
+          quote: quote,
+          payment: paymentResponse,
+          cancellation_terms: cancellation_terms,
+          tags: tags,
         },
-        payment: paymentResponse,
-        cancellation_terms: cancellation_terms,
-        tags: tags,
       },
-    },
+    }
+
+
+    return removeIdKeys(schema)
+  } catch (error) {
+    console.log({ error })
   }
-  return removeIdKeys(schema)
 }
 
 export const getConfirm = async (data: any) => {
@@ -279,7 +179,7 @@ export const getConfirm = async (data: any) => {
       order: {
         id: order_id,
         state: 'Accepted',
-        provider: provider,
+        provider: {id: provider.id},
         items: items,
         quote: quote,
         fulfillments: fulfillments,
@@ -312,7 +212,7 @@ export const getUpdate = async (data: any) => {
     return obj?.possibleStates?.includes(status)
   })
   const updatedFulfillment = fulfillments?.map((item: any) => {
-    if (item.type === 'Delivery') {
+    if (item.type === 'Delivery' || item.type === 'Return') {
       delete item.tags
       return item
     } else {
@@ -325,7 +225,9 @@ export const getUpdate = async (data: any) => {
       order: {
         id: order_id,
         state: taskState?.key,
-        provider: provider,
+        provider: {
+          id: provider.id
+        },
         items: items,
         quote: quote,
         fulfillments: updatedFulfillment,
@@ -370,7 +272,7 @@ export const getStatus = async (data: any) => {
   })
 
   const updatedFulfillment = fulfillments?.map((item: any) => {
-    if (item.type === 'Delivery') {
+    if (item.type === 'Delivery'|| item.type === 'Return') {
       delete item.tags
       return item
     } else {
@@ -451,9 +353,6 @@ export const getCancel = async (data: any) => {
         provider: {
           id: data.data.data.assignee._id,
         },
-        provider_location: {
-          id: data.data.data.assignee.addressDetails?._id,
-        },
         items: items,
         quote: quote,
         fulfillments: [
@@ -465,17 +364,12 @@ export const getCancel = async (data: any) => {
                 code: taskState?.key,
               },
             },
-            '@ondc/org/awb_no': '1227262193237777',
+            
             tracking: false,
             start: fulfillments[0].start,
             end: fulfillments[0].end,
-            agent: {
-              name: 'agent_name',
-              phone: '9886098860',
-            },
-            vehicle: {
-              registration: '3LVJ945',
-            },
+            agent: fulfillments[0].agent,
+            vehicle: fulfillments[0].vehicle,
           },
         ],
         billing: billing,
@@ -576,9 +470,8 @@ export const getTrackOrder = async (data: any) => {
         id: data?.data?.data?.fulfillments[0]?.id,
         // url: data?.data?.data?.trackingUrl,
         location: {
-          gps: `${(data?.data?.data?.assignee?.currentLocation?.coordinates[0]).toFixed(
-            6,
-          )},${(data?.data?.data?.assignee?.currentLocation?.coordinates[1]).toFixed(6)}`,
+          gps: `${(data?.data?.data?.assignee?.currentLocation?.coordinates[0]).toFixed(6)},${(data?.data?.data
+            ?.assignee?.currentLocation?.coordinates[1]).toFixed(6)}`,
           time: {
             timestamp: actionTimeStamp,
           },

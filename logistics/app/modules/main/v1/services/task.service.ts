@@ -6,8 +6,9 @@ import TaskStatusService from './taskStatus.service';
 import Agent from '../../models/agent.model';
 import SearchDumpService from './searchDump.service';
 import { formatedDate } from '../../../../lib/utils/utilityFunctions';
+import { generateEndTime, generateStartTime } from '../../../../lib/utils/modifyRange.util';
 
-const taskService = new TaskStatusService();
+const taskStatusService = new TaskStatusService();
 const searchDumpService = new SearchDumpService();
 
 const BPP_ID = process.env.BPP_ID;
@@ -77,11 +78,13 @@ class TaskService {
       await task.save();
       // savedTask.trackingUrl = `${process.env.MAIN_SITE_URL}/order/status/${savedTask._id}`;
       // await savedTask.save();
-      const newTask = await Task.findOne({ transaction_id: data?.transaction_id }).populate({
-        path: 'assignee',
-        select: 'vehicleDetails.vehicleNumber basePrice pricePerkilometer addressDetails',
-        populate: { path: 'userId', select: 'name mobile email' },
-      });
+      const newTask = await Task.findOne({ transaction_id: data?.transaction_id })
+        .populate({
+          path: 'assignee',
+          select: 'vehicleDetails.vehicleNumber basePrice pricePerkilometer addressDetails',
+          populate: { path: 'userId', select: 'name mobile email' },
+        })
+        .lean();
       return newTask;
     } catch (error: any) {
       if (error.status === 404 || error.status === 401 || error.status === 409) {
@@ -92,7 +95,7 @@ class TaskService {
     }
   }
 
-  async assignedTasks(parsedSkip: number, parsedLimit: number, searchString: string | undefined) {
+  async assignedTasks(parsedSkip: number, parsedLimit: number, searchString?: string | undefined) {
     try {
       const queryObject = {
         status: { $nin: ['Pending', 'Searching-for-Agent'] },
@@ -108,6 +111,7 @@ class TaskService {
         items: 1,
         linked_order: 1,
         assignee: 1,
+        orderConfirmedAt: 1,
       })
         .populate({
           path: 'assignee',
@@ -125,6 +129,7 @@ class TaskService {
 
       return { tasks, taskCount };
     } catch (error: any) {
+      console.log(`error ================== ${error.message}`);
       if (error.status === 404 || error.status === 401) {
         throw error;
       } else {
@@ -133,7 +138,7 @@ class TaskService {
     }
   }
 
-  async unassignedTasks(skip: number, limit: number, searchString: string | undefined) {
+  async unassignedTasks(skip: number, limit: number, searchString?: string | undefined) {
     try {
       const queryObject = {
         status: { $in: ['Searching-for-Agent'] },
@@ -148,6 +153,7 @@ class TaskService {
         fulfillments: 1,
         items: 1,
         linked_order: 1,
+        orderConfirmedAt: 1,
       })
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -258,54 +264,169 @@ class TaskService {
   async updateStatus(taskId: string, status: string): Promise<any> {
     try {
       let updatedTask;
-      const task: any = await Task.findById(taskId);
+      const task: any = await Task.findById(taskId).lean();
       if (!task) {
         throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
       }
+      if (status === 'Out-for-pickup') {
+        if (task?.items[0]?.descriptor?.code === 'P2H2P' && task?.status === 'Agent-assigned') {
+          const updateFulfillments = {
+            'fulfillments.0.state.descriptor.code': status,
+            'fulfillments.0.tracking': false,
+          };
+          updatedTask = await Task.findOneAndUpdate(
+            { _id: taskId },
+            {
+              $set: {
+                ...updateFulfillments,
+                status: status,
+                orderPickedUpTime: Date.now(),
+              },
+            },
+            { new: true },
+          ).lean();
+          return updatedTask;
+        }
+        return task;
+      } else if (status === 'Order-picked-up') {
+        if (task?.items[0]?.descriptor?.code === 'P2P') {
+          const updateFulfillments: any = {
+            'fulfillments.0.start.time.timestamp': new Date().toISOString(),
+            'fulfillments.0.state.descriptor.code': status,
+            'fulfillments.0.tracking': true,
+          };
+          // if (task.items[0].category_id === 'Express Delivery') {
+          //   updateFulfillments['fulfillments.0.@ondc/org/awb_no'] = '111-12345678';
+          // }
 
-      if (status === 'Order-picked-up') {
-        const updateFulfillments = {
-          'fulfillments.0.start.time.timestamp': new Date().toISOString(),
-          'fulfillments.0.state.descriptor.code': status,
-          'fulfillments.0.tracking': true,
-        };
-        updatedTask = await Task.findOneAndUpdate(
-          { _id: taskId },
-          { $set: { ...updateFulfillments, status: status, orderPickedUpTime: Date.now(), trackStatus: 'active' } },
-          { new: true },
-        ).lean();
-        return updatedTask;
+          updatedTask = await Task.findOneAndUpdate(
+            { _id: taskId },
+            { $set: { ...updateFulfillments, status: status, orderPickedUpTime: Date.now(), trackStatus: 'active' } },
+            { new: true },
+          ).lean();
+          return updatedTask;
+        }
+        if (task?.items[0]?.descriptor?.code === 'P2H2P' && task?.status === 'Out-for-pickup') {
+          const updateFulfillments: any = {
+            'fulfillments.0.start.time.timestamp': new Date().toISOString(),
+            'fulfillments.0.state.descriptor.code': status,
+          };
+          updatedTask = await Task.findOneAndUpdate(
+            { _id: taskId },
+            { $set: { ...updateFulfillments, status: status, orderPickedUpTime: Date.now() } },
+            { new: true },
+          ).lean();
+          return updatedTask;
+        } else {
+          return task;
+        }
+      } else if (status === 'Out-for-delivery') {
+        const checkOutForDelivery = await taskStatusService.taskStatusByTaskIdAndStatus(taskId, 'Out-for-delivery');
+        if (task?.items[0]?.descriptor?.code === 'P2H2P' && !checkOutForDelivery) {
+          return task;
+        } else {
+          const updateFulfillments = {
+            'fulfillments.0.state.descriptor.code': status,
+            'fulfillments.0.tracking': true,
+          };
+          updatedTask = await Task.findOneAndUpdate(
+            { _id: taskId },
+            {
+              $set: {
+                ...updateFulfillments,
+                status: status,
+                orderPickedUpTime: Date.now(),
+                trackStatus: 'active',
+              },
+            },
+            { new: true },
+          ).lean();
+          return updatedTask;
+        }
+      } else if (status === 'Pickup-failed') {
+        console.log('Pickup-failed');
+      } else if (status === 'Delivery-failed') {
+        console.log('Delivery-failed');
       } else if (status === 'Order-delivered') {
         const orderDeliveredAt = new Date().toISOString();
-        const updateFulfillments = {
-          'fulfillments.0.end.time.timestamp': orderDeliveredAt,
-          'fulfillments.0.state.descriptor.code': status,
-          'fulfillments.0.tracking': false,
-        };
+        if (task?.items[0]?.descriptor?.code === 'P2H2P') {
+          const checkAtDestinationHub = await taskStatusService.taskStatusByTaskIdAndStatus(
+            taskId,
+            'At-destination-hub',
+          );
+          if (checkAtDestinationHub) {
+            const updatePayment = {
+              ...task.payment,
+              status: 'PAID',
+              time: {
+                timestamp: orderDeliveredAt,
+              },
+            };
+            const updateFulfillments = {
+              'fulfillments.0.end.time.timestamp': orderDeliveredAt,
+              'fulfillments.0.state.descriptor.code': 'Order-delivered',
+              'fulfillments.0.tracking': false,
+            };
+            updatedTask = await Task.findOneAndUpdate(
+              { _id: taskId },
+              {
+                $set: {
+                  ...updateFulfillments,
+                  status: 'Order-delivered',
+                  trackStatus: 'inactive',
+                  payment: updatePayment,
+                },
+              },
+              { new: true },
+            ).lean();
+            return updatedTask;
+          } else {
+            const updateFulfillments = {
+              'fulfillments.0.state.descriptor.code': 'In-transit',
+              'fulfillments.0.tracking': false,
+            };
+            updatedTask = await Task.findOneAndUpdate(
+              { _id: taskId },
+              {
+                $set: {
+                  ...updateFulfillments,
+                  status: 'In-transit',
+                },
+              },
+              { new: true },
+            ).lean();
+            return updatedTask;
+          }
+        } else {
+          const updateFulfillments = {
+            'fulfillments.0.end.time.timestamp': orderDeliveredAt,
+            'fulfillments.0.state.descriptor.code': status,
+            'fulfillments.0.tracking': false,
+          };
 
-        const updatePayment = {
-          ...task.payment,
-          status: 'PAID',
-          time: {
-            timestamp: orderDeliveredAt,
-          },
-        };
-
-        updatedTask = await Task.findOneAndUpdate(
-          { _id: taskId },
-          {
-            $set: {
-              ...updateFulfillments,
-              status: status,
-              orderPickedUpTime: Date.now(),
-              payment: updatePayment,
-              trackStatus: 'inactive',
+          const updatePayment = {
+            ...task.payment,
+            status: 'PAID',
+            time: {
+              timestamp: orderDeliveredAt,
             },
-          },
+          };
 
-          { new: true },
-        ).lean();
-        return updatedTask;
+          updatedTask = await Task.findOneAndUpdate(
+            { _id: taskId },
+            {
+              $set: {
+                ...updateFulfillments,
+                status: status,
+                payment: updatePayment,
+                trackStatus: 'inactive',
+              },
+            },
+
+            { new: true },
+          ).lean();
+          return updatedTask;
+        }
       } else if (status === 'RTO-Delivered') {
         const updateFulfillments = {
           'fulfillments.1.end.time.timestamp': new Date().toISOString(),
@@ -322,11 +443,11 @@ class TaskService {
       } else if (status === 'Customer-not-found') {
         const tags = task?.fulfillments[0]?.tags.filter((obj: any) => obj?.code === 'rto_action');
         const cancellationReasonId = '013';
+        // RTO-Disposed
         if (tags[0]?.list[0]?.value === 'no') {
           if (task?.assignee) {
             await Agent.findByIdAndUpdate(task?.assignee, { $set: { isAvailable: 'true' } });
           }
-
           updatedTask = await Task.findOneAndUpdate(
             { _id: taskId },
             {
@@ -337,14 +458,14 @@ class TaskService {
                 cancellationReasonId: cancellationReasonId,
                 trackStatus: 'inactive',
               },
-              $unset: { assignee: '' },
+              // $unset: { assignee: '' },
             },
             { new: true },
           ).lean();
 
           return updatedTask;
         }
-        const deliveryID = task.fulfillments.find((item: any) => item.type === 'Delivery').id;
+        const deliveryID = task.fulfillments.find((item: any) => item.type === 'Delivery' || item.type === 'Return').id;
 
         const get_RTO_ID: any = await searchDumpService.getSearchDump(deliveryID);
 
@@ -457,7 +578,9 @@ class TaskService {
   async getTasks(agentId: string) {
     try {
       const tasks = await Task.find(
-        { assignee: agentId },
+        {
+          $or: [{ assignee: agentId }, { 'otherFulfillments.assignee': agentId }],
+        },
         {
           task_id: 1,
           status: 1,
@@ -467,6 +590,7 @@ class TaskService {
           createdAt: 1,
           updatedAt: 1,
           orderConfirmedAt: 1,
+          otherFulfillments: 1,
         },
       ).sort({ createdAt: -1 });
       return tasks;
@@ -481,11 +605,71 @@ class TaskService {
 
   async updateTask(updatedData: any): Promise<any> {
     try {
-      const currentTime = Date.now();
+      
+      const startRange = await generateStartTime(updatedData.items[0].category_id);
+      const endRange = await generateEndTime(updatedData.items[0].category_id);
       const readyToShipState: string = updatedData.fulfillments
-        .find((fulfillment: any) => fulfillment.type === 'Delivery')
+        .find((fulfillment: any) => fulfillment.type === 'Delivery' || fulfillment.type === 'Return')
         .tags.find((tag: any) => tag.code === 'state').list[0].value;
 
+      const agentDetails: any = await Agent.findOne({ _id: updatedData.provider.id })
+        .select('userId vehicleDetails')
+        .populate({
+          path: 'userId',
+          select: 'name mobile',
+        });
+      if (readyToShipState === 'yes') {
+        const updatedFulfillments = updatedData.fulfillments.map((fulfillment: any) => {
+          if (fulfillment.type === 'Delivery' || fulfillment.type === 'Return') {
+            fulfillment.start.time = {
+              ...fulfillment.start.time,
+              range: startRange,
+            };
+            fulfillment.end.time = {
+              ...fulfillment.end.time,
+              range: endRange,
+            };
+            fulfillment.state = { descriptor: { code: 'Agent-assigned' } };
+            fulfillment.tracking = false;
+            fulfillment.agent = {
+              name: agentDetails.userId.name,
+              mobile: agentDetails.userId.mobile,
+            };
+            fulfillment.vehicle = { registration: agentDetails?.vehicleDetails?.vehicleNumber };
+            return fulfillment;
+          } else {
+            fulfillment;
+          }
+        });
+        updatedData.fulfillments = updatedFulfillments;
+      } else {
+        updatedData.fulfillments[0].state = { descriptor: { code: 'Pending' } };
+        updatedData.status = 'Searching-for-Agent';
+        updatedData.payment = {
+          ...updatedData.payment,
+          'payment.status': 'NOT-PAID',
+        };
+      }
+      const updatedTask = await Task.findOneAndUpdate(
+        { transaction_id: updatedData.transaction_id },
+        { $set: { ...updatedData } },
+        { new: true },
+      );
+      return updatedTask;
+    } catch (error: any) {
+      console.log({ error });
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async updateTask_v2(updatedData: any): Promise<any> {
+    try {
+      const currentTime = Date.now();
+      console.log('V2 Confirm hit logs _ _ _ _ _ ');
+      const readyToShipState: string = updatedData.fulfillments.find(
+        (fulfillment: any) => fulfillment.type === 'CoD' || fulfillment.type === 'Prepaid',
+      ).tags?.['@ondc/org/order_ready_to_ship'];
+      console.log('ready to ship state ---------------------------: ', readyToShipState);
       const agentDetails: any = await Agent.findOne({ _id: updatedData.provider.id })
         .select('userId vehicleDetails')
         .populate({
@@ -495,16 +679,17 @@ class TaskService {
       console.log({ agentDetails });
       if (readyToShipState === 'yes') {
         const updatedFulfillments = updatedData.fulfillments.map((fulfillment: any) => {
-          if (fulfillment.type === 'Delivery') {
+          // if (fulfillment.type === 'Delivery') {
+          if (fulfillment.type === 'CoD' || fulfillment.type === 'Prepaid') {
             fulfillment.start.time = {
-              ...fulfillment.start.time,
+              // ...fulfillment.start.time, //v1.2
               range: {
                 start: new Date(currentTime).toISOString(),
                 end: new Date(currentTime + 15 * 60 * 1000).toISOString(),
               },
             };
             fulfillment.end.time = {
-              ...fulfillment.end.time,
+              // ...fulfillment.end.time, //v1.2
               range: {
                 start: new Date(currentTime + 45 * 60 * 1000).toISOString(),
                 end: new Date(currentTime + 60 * 60 * 1000).toISOString(),
@@ -538,7 +723,7 @@ class TaskService {
       );
       return updatedTask;
     } catch (error: any) {
-      console.log({ error });
+      console.log({ err: error ? error : error.message });
       throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     }
   }
@@ -564,7 +749,7 @@ class TaskService {
           { _id: clonedTask._id },
           {
             $set: { status: 'RTO-Initiated' },
-            $unset: { assignee: '' }, // Set assignee to an empty string to remove it
+            // Set assignee to an empty string to remove it
           },
         );
       }
@@ -573,7 +758,7 @@ class TaskService {
         { _id: data?.taskId },
         {
           $set: { status: task.status === 'Agent-assigned' ? 'Searching-for-Agent' : 'Cancelled' },
-          $unset: { assignee: '' }, // Set assignee to an empty string to remove it
+          // Set assignee to an empty string to remove it
         },
         { new: true },
       );
@@ -582,7 +767,7 @@ class TaskService {
         status: updatedTask.status,
         description: data?.description,
       };
-      await taskService.create(taskStatusData); // update the task status in the task status collection
+      await taskStatusService.create(taskStatusData); // update the task status in the task status collection
       return true;
     } catch (error: any) {
       if (error.status === 404 || error.status === 401 || error.status === 400 || error.status === 409) {
@@ -636,17 +821,21 @@ class TaskService {
   }
   async getActiveTasks(query: any) {
     try {
-      const tasks = await Task.find(query, {
-        task_id: 1,
-        status: 1,
-        'product.items': 1,
-        fulfillments: 1,
-        items: 1,
-        assignee: 1,
-        orderConfirmedAt: 1,
-        transaction_id: 1,
-        createdAt: 1,
-      }).sort({ createdAt: -1 });
+      const tasks = await Task.find(
+        query,
+        //   , {
+        //   task_id: 1,
+        //   status: 1,
+        //   'product.items': 1,
+        //   fulfillments: 1,
+        //   items: 1,
+        //   assignee: 1,
+        //   orderConfirmedAt: 1,
+        //   transaction_id: 1,
+        //   createdAt: 1,
+        //   otherFulfillments: 1
+        // }
+      ).sort({ createdAt: -1 });
       return tasks;
     } catch (error: any) {
       if (error.status === 404 || error.status === 401 || error.status === 400 || error.status === 409) {
@@ -659,7 +848,7 @@ class TaskService {
 
   async cancel(transaction_id: string, cancellationReasonId: string) {
     try {
-      const task: any = await Task.findOne({ transaction_id });
+      const task: any = await Task.findOne({ transaction_id }).lean();
       if (task) {
         const chargeableStatus: any = [
           'Order-picked-up',
@@ -668,17 +857,144 @@ class TaskService {
           'RTO-Delivered',
           'RTO-Disposed',
         ];
+        // check for TAT
+
+        let cancellationAmount = 0;
         if (chargeableStatus?.includes(task.status)) {
           //set cancellation charges
-          task.cancellationAmount = 200;
+          cancellationAmount = 200;
         } else {
           //no cancellation charges
-          task.cancellationAmount = 0;
+          cancellationAmount = 0;
         }
-        task.orderCancelledBy = task.orderCancelledBy ? task.orderCancelledBy : task.bap_id;
-        task.status = 'Cancelled';
-        task.cancellationReasonId = cancellationReasonId;
-        task.assignee = '';
+
+        const tags = task?.fulfillments[0]?.tags.filter((obj: any) => obj?.code === 'rto_action');
+        // const cancellationReasonId = '013';
+        // RTO-Disposed
+        if (tags[0]?.list[0]?.value === 'no') {
+          if (task?.assignee) {
+            await Agent.findByIdAndUpdate(task?.assignee, { $set: { isAvailable: 'true' } });
+          }
+          const updatedTask = await Task.findOneAndUpdate(
+            { _id: task._id },
+            {
+              $set: {
+                status: 'RTO-Disposed',
+                orderCancelledBy: task?.bap_id,
+                'fulfillments.0.state.descriptor.code': 'Cancelled',
+                cancellationReasonId: cancellationReasonId,
+                trackStatus: 'inactive',
+                cancellationAmount,
+              },
+              // $unset: { assignee: '' },
+            },
+            { new: true },
+          ).lean();
+
+          return updatedTask;
+        } else {
+          const deliveryID = task.fulfillments.find((item: any) => item.type === 'Delivery').id;
+
+          const get_RTO_ID: any = await searchDumpService.getSearchDump(deliveryID);
+
+          const deliveryPrice = task.quote.price.value;
+
+          const rtoPrice = ((parseFloat(deliveryPrice) * 30) / 100).toFixed(2);
+          const rtoTax = ((parseFloat(rtoPrice) * 10) / 100).toFixed(2);
+
+          const RTOPriceQuote = {
+            '@ondc/org/item_id': 'rto',
+
+            '@ondc/org/title_type': 'rto',
+            price: {
+              currency: 'INR',
+              value: `${((parseFloat(deliveryPrice) * 30) / 100).toFixed(2)}`,
+            },
+          };
+          const RTOTaxQuote = {
+            '@ondc/org/item_id': 'rto',
+            '@ondc/org/title_type': 'tax',
+            price: {
+              currency: 'INR',
+              value: rtoTax,
+            },
+          };
+          const newRTOItem = {
+            id: 'rto',
+            fulfillment_id: get_RTO_ID.rto,
+            category_id: 'Immediate Delivery',
+            descriptor: {
+              code: 'P2P',
+            },
+            time: {
+              label: 'TAT',
+              duration: 'PT60M',
+              timestamp: formatedDate(`${new Date().toISOString()}`),
+            },
+          };
+          const newRTOFulfillment = {
+            id: get_RTO_ID.rto,
+            type: 'RTO',
+            state: {
+              descriptor: {
+                code: 'RTO-Initiated',
+              },
+            },
+            start: {
+              time: {
+                timestamp: new Date().toISOString(),
+              },
+            },
+          };
+
+          const totalPrice = (parseFloat(deliveryPrice) + parseFloat(rtoPrice + rtoTax)).toFixed(2);
+          const rtoTags = [
+            {
+              code: 'rto_event',
+              list: [
+                { code: 'retry_count', value: '1' },
+                { code: 'rto_id', value: get_RTO_ID.rto },
+                { code: 'cancellation_reason_id', value: cancellationReasonId },
+                { code: 'sub_reason_id', value: '004' },
+                { code: 'cancelled_by', value: task?.bap_id },
+              ],
+            },
+          ];
+
+          await Task.findOneAndUpdate(
+            { _id: task._id },
+            {
+              $push: {
+                items: newRTOItem,
+                fulfillments: newRTOFulfillment,
+                'quote.breakup': [RTOPriceQuote, RTOTaxQuote],
+              },
+            },
+            { new: true },
+          ).lean();
+          //add tags in fulfillment
+          const updatedTask = await Task.findOneAndUpdate(
+            { _id: task._id },
+            {
+              $set: {
+                status: 'RTO-Initiated',
+                orderCancelledBy: task?.bap_id,
+                cancellationAmount,
+                cancellationReasonId: cancellationReasonId,
+                'fulfillments.0.state.descriptor.code': 'Cancelled',
+
+                'quote.price.value': `${totalPrice}`,
+                'fulfillments.0.tags': rtoTags,
+              },
+            },
+            { new: true },
+          ).lean();
+          return updatedTask;
+        }
+        // task.orderCancelledBy = task.orderCancelledBy ? task.orderCancelledBy : task.bap_id;
+        // task.status = 'Cancelled';
+        // task.cancellationReasonId = cancellationReasonId;
+        // task.assignee = '';
       }
 
       await task.save();
@@ -727,15 +1043,32 @@ class TaskService {
       }
     }
   }
+  async getTaskStatus_v2(transaction_id: string, _order_id: string) {
+    try {
+      const task: any = await Task.findOne({ transaction_id }).populate({
+        path: 'assignee',
+        select: 'vehicleDetails.vehicleNumber basePrice pricePerkilometer addressDetails currentLocation',
+        populate: { path: 'userId', select: 'name mobile email' },
+      });
+      return task;
+    } catch (error: any) {
+      if (error.status === 404 || error.status === 401) {
+        throw error;
+      } else {
+        throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
 
   async updateTaskProtocol(dataToUpdate: any) {
     try {
       const { context, order } = dataToUpdate;
-      const currentTime = Date.now();
       const existingTask: any = await Task.findOne({ transaction_id: context.transaction_id });
       if (!existingTask) {
         throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
       }
+      const startRange = await generateStartTime(existingTask.items[0].category_id);
+      const endRange = await generateEndTime(existingTask.items[0].category_id);
       const agentDetails: any = await Agent.findOne({ _id: existingTask.assignee })
         .select('userId vehicleDetails')
         .populate({
@@ -743,31 +1076,26 @@ class TaskService {
           select: 'name mobile',
         });
       const readyToShipState = order?.fulfillments
-        .find((fulfilment: any) => fulfilment.type === 'Delivery')
+        .find((fulfilment: any) => fulfilment.type === 'Delivery' || fulfilment.type === 'Return')
         .tags.find((tag: any) => tag.code === 'state').list[0].value;
       const fulfillments: any = existingTask.fulfillments;
       if (readyToShipState === 'yes') {
         const updatedFulfillments = fulfillments.map((fulfillment: any) => {
-          if (fulfillment.type === 'Delivery') {
+          if (fulfillment.type === 'Delivery' || fulfillment.type === 'Return') {
+
             fulfillment.start.time = {
               ...fulfillment.start.time,
-              range: {
-                start: new Date(currentTime).toISOString(),
-                end: new Date(currentTime + 15 * 60 * 1000).toISOString(),
-              },
+              range: startRange,
             };
             fulfillment.end.time = {
               ...fulfillment.end.time,
-              range: {
-                start: new Date(currentTime + 45 * 60 * 1000).toISOString(),
-                end: new Date(currentTime + 60 * 60 * 1000).toISOString(),
-              },
+              range: endRange,
             };
 
             fulfillment.state = { descriptor: { code: 'Agent-assigned' } };
             fulfillment.tracking = false;
             fulfillment.start.instructions = order?.fulfillments.find(
-              (fulfilment: any) => fulfilment.type === 'Delivery',
+              (fulfilment: any) => fulfilment.type === 'Delivery' || fulfilment.type === 'Return',
             )?.start.instructions;
             fulfillment.agent = {
               name: agentDetails.userId.name,
@@ -789,6 +1117,13 @@ class TaskService {
                 return tag;
               }
             });
+            console.log(existingTask?.items[0]?.descriptor?.code === "P2H2P")
+            if(existingTask?.items[0]?.descriptor?.code === "P2H2P"){
+              fulfillment.start.instructions = {
+                images : "https://ref-logistics-app-staging-bucket.s3.ap-south-1.amazonaws.com/1696662276710.jpeg"
+              }
+            }
+            console.log({fulfillment})
             return fulfillment;
           } else {
             return fulfillment;
@@ -797,6 +1132,63 @@ class TaskService {
 
         dataToUpdate.fulfillments = updatedFulfillments;
       }
+      const otherFulfillments = [];
+      if (existingTask.items[0].category_id === 'Express Delivery') {
+        const deliveryFulfillment = fulfillments.find(
+          (item: any) => item.type === 'Delivery' || item.type === 'Return',
+        );
+        const searchDump: any = await searchDumpService.getSearchDump(deliveryFulfillment.id);
+        const pickupToSourceHubFulfillment = {
+          start: deliveryFulfillment.start,
+          //searchDump.locations.sourceHub
+          end: {
+            location: {
+              address: {
+                name: searchDump?.locations?.sourceHub?.name,
+                building: searchDump?.locations?.sourceHub?.addressDetails.building,
+                city: searchDump?.locations?.sourceHub?.addressDetails.city,
+                state: searchDump?.locations?.sourceHub?.addressDetails.state,
+                country: searchDump?.locations?.sourceHub?.addressDetails.country,
+                area_code: searchDump?.locations?.sourceHub?.addressDetails.pincode,
+                location: searchDump?.locations?.sourceHub?.addressDetails.location,
+              },
+            },
+            contact: {
+              phone: '',
+            },
+          },
+          assignee: existingTask.assignee,
+        };
+        otherFulfillments.push(pickupToSourceHubFulfillment);
+        const destinationHubToDrop = {
+          start: {
+            location: {
+              address: {
+                name: searchDump?.locations?.destinationHub?.name,
+                building: searchDump?.locations?.destinationHub?.addressDetails.building,
+                city: searchDump?.locations?.destinationHub?.addressDetails.city,
+                state: searchDump?.locations?.destinationHub?.addressDetails.state,
+                country: searchDump?.locations?.destinationHub?.addressDetails.country,
+                area_code: searchDump?.locations?.destinationHub?.addressDetails.pincode,
+                location: searchDump?.locations?.destinationHub?.addressDetails.location,
+              },
+            },
+            contact: {
+              phone: '',
+            },
+          },
+          end: deliveryFulfillment.end,
+          assignee: '',
+        };
+        otherFulfillments.push(destinationHubToDrop);
+        await Task.updateOne(
+          { transaction_id: context.transaction_id },
+          {
+            $set: { otherFulfillments },
+          },
+        );
+      }
+
       const updatedTask: any = await Task.findOneAndUpdate(
         { transaction_id: context.transaction_id },
         { $set: { fulfillments: dataToUpdate.fulfillments, status: 'Agent-assigned', 'payment.status': 'NOT-PAID' } },
@@ -804,7 +1196,6 @@ class TaskService {
       );
       return updatedTask;
     } catch (error: any) {
-      console.log({ error });
       if (error.status === 404 || error.status === 401) {
         throw error;
       } else {
