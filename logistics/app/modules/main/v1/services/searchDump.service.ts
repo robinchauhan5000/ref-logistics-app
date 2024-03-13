@@ -21,8 +21,9 @@ class SearchDumpService {
   }
 
   async getSearchDump(deliveryId: string) {
+    console.log("deliveryId>>>>>>>>>>>>>>>>>",deliveryId)
     try {
-      const dumpObj = await SearchDump.findOne({ delivery: deliveryId }).lean();
+      const dumpObj = await SearchDump.findOne({ delivery: deliveryId }, {_id: 0 }).lean();
       return dumpObj;
     } catch (error: any) {
       if (error.status === 409) {

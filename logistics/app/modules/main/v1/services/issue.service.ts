@@ -23,6 +23,7 @@ class IssueService {
         return savedIssue;
       }
     } catch (error: any) {
+      console.log("error=====",error);
       if (error.status === 409 || error.status === 404) {
         throw error;
       } else {

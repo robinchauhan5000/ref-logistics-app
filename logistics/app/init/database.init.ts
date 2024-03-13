@@ -15,6 +15,8 @@ console.log(`config: ${JSON.stringify(config)}`);
 
 mongoose.connect(`${config.host}/${config.name}`, dbOptions);
 
+
+
 mongoose.Promise = global.Promise;
 
 

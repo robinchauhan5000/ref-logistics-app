@@ -1,18 +1,22 @@
 import Roles from './roles';
 import Users from './users';
 import agents from './agents';
+import hubsData from './hubs';
+import Price from './pricing';
 import Role from '../../modules/main/models/role.model';
 import AuthenticationService from '../../modules/main/v1/services/authentication.service';
 import UserService from '../../modules/main/v1/services/user.service';
 import applicationSupport from './applicationSupport';
-import hubsData from './hubs';
 import ApplicationSettingService from '../../modules/main/v1/services/applicationSetting.service';
 import HubService from '../../modules/main/v1/services/hubs.service';
+import PricingService from '../../modules/main/v1/services/pricing.service';
+import { IpricingCalculation } from '../../interfaces/test';
 
 const authenticationService = new AuthenticationService();
 const userService = new UserService();
 const applicationSettingService = new ApplicationSettingService();
 const hubService = new HubService();
+const pricingService = new PricingService();
 
 async function BootstrapData() {
   // 1: Create Roles
@@ -68,6 +72,17 @@ async function BootstrapData() {
       return hubs;
     });
     await Promise.all(promiseArray);
+  } catch (err) {
+    console.log(err);
+  }
+  // Create Pricing
+  try {
+    const priceObj: IpricingCalculation = Price;
+    const data: any = await pricingService.get();
+    if (data?.length > 0) {
+      return;
+    }
+    return await pricingService.create(priceObj);
   } catch (err) {
     console.log(err);
   }

@@ -89,9 +89,9 @@ class AgentService {
         isOnline: true,
         currentLocation: {
           $near: {
-            $geometry: { type: 'Point', coordinates: [startLat, startLong] },
+            $geometry: { type: 'Point', coordinates: [startLat||0, startLong||0] },
             $minDistance: 0,
-            $maxDistance: 5000,
+            $maxDistance: 50000000000,
           },
         },
       };
@@ -106,6 +106,7 @@ class AgentService {
 
       return { agents, agentCount };
     } catch (error: any) {
+      console.log("errorMonitor++++++++",error);
       if (error.status === 404 || error.status === 401) {
         throw error;
       } else {
@@ -123,13 +124,13 @@ class AgentService {
       const query = {
         $and: [
           { isOnline: true },
-          { isAvailable: true },
+          // { isAvailable: true },
           {
             currentLocation: {
               $near: {
                 $geometry: { type: 'Point', coordinates: [startLat, startLong] },
                 $minDistance: 0,
-                $maxDistance: 5000,
+                $maxDistance: 50000000000,
               },
             },
           },
@@ -240,8 +241,12 @@ class AgentService {
 
       if (role?.name === 'Admin' || role?.name === 'Super Admin') {
         // checking the role of the user deleting the agent
-        await Agent.findByIdAndRemove(id); // delete agent from the Db
-        await User.findByIdAndRemove(agentToDelte?.userId); // delete the user related to agent from the Db
+        await Agent.findByIdAndRemove(id,{
+          lean:true
+        }); // delete agent from the Db
+        await User.findByIdAndRemove(agentToDelte?.userId,{
+          lean:true
+        }); // delete the user related to agent from the Db
         return true;
       } else {
         throw new UnauthorisedError(MESSAGES.UNAUTHORISED_ERROR);
@@ -370,7 +375,8 @@ class AgentService {
   }
   async markOnlineOrOffline(status: boolean) {
     try {
-      return await Agent.updateMany({}, { $set: { isOnline: status, isAvailable: status } });
+            const users: any = await User.find({'enabled': 1})
+      return await Agent.updateMany({userId: { $in:await users.map((user: any) => user._id) }  }, { $set: { isOnline: status, isAvailable: status } });
     } catch (error) {
       throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     }

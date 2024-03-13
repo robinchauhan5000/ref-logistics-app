@@ -7,6 +7,27 @@ const chargeSchema = new mongoose.Schema({
   totalCharge: Number,
 });
 
+const orderSchema = new mongoose.Schema({
+  weight: {
+    unit: { type: String},
+    value: { type: Number}
+  },
+  dimensions: {
+    length: {
+      unit: { type: String},
+      value: { type: Number}
+    },
+    breadth: {
+      unit: { type: String},
+      value: { type: Number}
+    },
+    height: {
+      unit: { type: String},
+      value: { type: Number}
+    }
+  }
+});
+
 const searchResponseDump = new mongoose.Schema(
   {
     delivery: {
@@ -14,6 +35,9 @@ const searchResponseDump = new mongoose.Schema(
     },
     rto: {
       type: String,
+    },
+    order: {
+      type: orderSchema
     },
     charge: {
       type: chargeSchema,

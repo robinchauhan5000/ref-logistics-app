@@ -47,7 +47,6 @@ const dimensionSchema = new mongoose.Schema({
 //   ],
 // });
 
-
 const address = new mongoose.Schema({
   time: {
     duration: { type: String },
@@ -79,7 +78,7 @@ const address = new mongoose.Schema({
       content_type: { type: String },
       url: { type: String },
     },
-    images: [{type: String}]
+    images: [{ type: String }],
   },
 });
 const fulfillmentSchema = new mongoose.Schema({
@@ -211,9 +210,7 @@ const newItemSchema = new mongoose.Schema({
     duration: {
       type: String,
     },
-    timestamp: {
-      type: String,
-    },
+    timestamp: { type: String },
   },
 });
 
@@ -370,8 +367,9 @@ const taskSchema = new mongoose.Schema(
     WeightDiff: [],
     trackStatus: { type: String, default: 'inactive' },
     otherFulfillments: [{}],
-    failedDeliveryCount:{type: Number, default: 0},
-    failedPickupCount:{type: Number, default: 0},
+    failedDeliveryCount: { type: Number, default: 0 },
+    failedPickupCount: { type: Number, default: 0 },
+    updatedAt: { type: Number },
   },
   {
     timestamps: true,

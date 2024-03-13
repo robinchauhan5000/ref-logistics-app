@@ -45,6 +45,8 @@ const MESSAGES = {
   TASK_NOT_FOUND_FOR_TRANSACTION_ID: 'No task found with provided transaction id',
   ACCOUNT_LOCKED:
     'Your account has been locked due to multiple failed login attempts, Please wait for 30 minutes before logging in',
+  PRICING_NOT_FOUND: 'Pricing value your are trying to access is not available',
+  PRICING_ALREADY_EXISTS: 'Pricing value alredy exist please enter different value',
 };
 
 export default MESSAGES;

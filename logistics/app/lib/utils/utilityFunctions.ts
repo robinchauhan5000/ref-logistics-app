@@ -1,11 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { uuid } from 'uuidv4';
-import weightPriceCalculation from './priceCalculation';
+// import weightPriceCalculation from './priceCalculation';
 import axios from 'axios';
+import { p2h2pPricing, p2pPricing } from './getPricing';
 
-export const encryptPIN = (PIN: string): Promise<string> => {
+export const encryptPIN = (PIN: string): Promise<any> => {
   return new Promise<string>((resolve, reject) => {
-    bcrypt.hash(PIN, 10, (err: Error | null, hash: string) => {
+    bcrypt.hash(PIN, 10, (err: any, hash: string) => {
       if (err) {
         reject(err);
       } else {
@@ -13,6 +14,18 @@ export const encryptPIN = (PIN: string): Promise<string> => {
       }
     });
   });
+};
+
+export const durationToTimestamp = (duration: string) => {
+  if ((duration.startsWith('pT') && duration.endsWith('D')) || duration.endsWith('M') || duration.endsWith('H')) {
+    const numericPart = parseInt(duration.substring(2, duration.length - 1));
+
+    if (duration.endsWith('M')) return Date.now() + numericPart * 60 * 1000;
+    else if (duration.endsWith('H')) return Date.now() + numericPart * 60 * 60 * 1000;
+    else if (duration.endsWith('H')) return Date.now() + numericPart * 24 * 60 * 60 * 1000; // Convert hours to milliseconds
+  }
+  console.error('Invalid duration format when  converting duration to timestamp');
+  throw new Error('Invalid duration format when  converting duration to timestamp');
 };
 
 export const isValidPIN = async (PIN: string, userPIN: string): Promise<boolean> => {
@@ -26,25 +39,6 @@ export const isValidPIN = async (PIN: string, userPIN: string): Promise<boolean>
     });
   });
 };
-
-// export const removeIdKeys = (obj: any): any => {
-//   if (typeof obj !== 'object' || obj === null) {
-//     return obj;
-//   }
-
-//   if (Array.isArray(obj)) {
-//     return obj.map((item) => removeIdKeys(item));
-//   }
-
-//   const newObj: any = {};
-//   for (const key in obj) {
-//     if (key !== '_id') {
-//       newObj[key] = removeIdKeys(obj[key]);
-//     }
-//   }
-
-//   return newObj;
-// };
 
 export const removeIdKeys = (obj: any, maxDepth: number = 10, currentDepth: number = 0): any => {
   if (typeof obj !== 'object' || obj === null || currentDepth >= maxDepth) {
@@ -88,9 +82,9 @@ export const calculateDeliveryCharges = function (
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(degreesToRadians(parseFloat(lat1))) *
-    Math.cos(degreesToRadians(parseFloat(lat2))) *
-    Math.sin(dLon / 2) *
-    Math.sin(dLon / 2);
+      Math.cos(degreesToRadians(parseFloat(lat2))) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const charge = base + parseFloat((earthRadiusKm * c).toFixed(0)) * 3.5 * perKm;
@@ -102,16 +96,7 @@ export const calculateDeliveryCharges = function (
   };
 };
 
-const calculateDeliveryChargesWithDistance = function (distance: number, base: number, perKm: number) {
-  let charge = distance - 2 > 0 ? (distance - 2) * perKm + base : base;
-
-  return {
-    charge,
-    tax: charge * 0.1,
-  };
-};
-
-export const formatedDate = (data: string): string => {
+export const formatedDate = (data: number | string): string => {
   const currentDate = new Date(data);
   const year = currentDate.getFullYear();
   const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
@@ -131,7 +116,7 @@ export const categoryCalculation = (category?: Category) => {
   category === 'Express Delivery'
     ? (multiplier = 0.15)
     : // : category === "Standard Delivery" ? multiplier = 0.2
-    category === 'Immediate Delivery'
+      category === 'Immediate Delivery'
       ? (multiplier = 0.1)
       : category === 'Same Day Delivery'
         ? (multiplier = 0.05)
@@ -146,7 +131,7 @@ export const calculateDuration = (category?: Category) => {
   category === 'Express Delivery'
     ? (duration = 'P4D')
     : // : category === "Standard Delivery" ? duration = 0.2
-    category === 'Immediate Delivery'
+      category === 'Immediate Delivery'
       ? (duration = 'PT60M')
       : category === 'Same Day Delivery'
         ? (duration = 'P1D')
@@ -167,7 +152,6 @@ export const checkMoterableDistance = async (startGPS: string[], endGPS: string[
     // Make the HTTP GET request
     const response = await axios.get(apiUrl);
     const distanceInMeters = response.data.results.distances[0][1];
-    console.log({ distanceInMeters });
     // // Convert meters to kilometers (or other units if needed)
     const distanceInKilometers = distanceInMeters / 1000;
 
@@ -187,7 +171,7 @@ const getCategoryTimestamp = function (type?: string) {
   } else {
     const currentDate = new Date();
     const futureDate = new Date(currentDate);
-    futureDate.setDate(currentDate.getDate() + 1);
+    futureDate.setDate(currentDate.getDate());
     return futureDate;
   }
 };
@@ -208,30 +192,26 @@ export const getSearchResponse = async (
   let weightPrice = null;
   let taxPrice = null;
   let rtoCharge = null;
+  agent;
   // check for p2h2p and p2p
   if (type === 'P2H2P') {
     const p2h2pDistance = await checkMoterableDistance(startGPS, endGPS);
-    weightPrice = weightPriceCalculation(dimentions, weight);
-    const categoryMultiplier = categoryCalculation(category);
-    total_charge = 150 + weightPrice * (1 + categoryMultiplier);
-    distance = p2h2pDistance?.toFixed(2);
-    rtoCharge = ((total_charge * 30) / 100).toFixed(2);
-    taxPrice = (total_charge * 10) / 100;
+    const { charge, tax, package_price } = await p2h2pPricing(category, dimentions, weight);
+    // weightPrice = weightPriceCalculation(dimentions, weight);
+    // const categoryMultiplier = categoryCalculation(category);
+    total_charge = package_price + charge;
+    distance = p2h2pDistance;
+    taxPrice = tax;
   } else {
     const checkDistanceFromPickupToDrop: any = await checkMoterableDistance(startGPS, endGPS);
-    // weightPrice = weightPriceCalculation(dimentions, weight);
-    const categoryMultiplier = categoryCalculation(category);
-    const { charge, tax } = calculateDeliveryChargesWithDistance(
-      checkDistanceFromPickupToDrop,
-      agent.basePrice,
-      agent.pricePerkilometer,
-    );
+    const { charge, tax } = await p2pPricing(checkDistanceFromPickupToDrop);
     taxPrice = tax;
     distance = checkDistanceFromPickupToDrop.toFixed(2);
-    total_charge = (charge + tax) * (1 + categoryMultiplier);
-    rtoCharge = ((total_charge * 30) / 100).toFixed(2);
+    total_charge = charge;
   }
 
+  rtoCharge = ((total_charge + taxPrice) * 30) / 100;
+  const rtoTax = ((rtoCharge * 10) / 100).toFixed(2);
   // console.log({ charge, tax, distance });
   const delivery_id = uuid();
   const RTO_id = uuid();
@@ -245,8 +225,8 @@ export const getSearchResponse = async (
     const newDate = new Date(newDateInMillis);
     return newDate.toISOString();
   };
-  const totaleliveryDays = category === 'Express Delivery' ? 4 : 1;
-  const rtoDays = type === "P2H2P" ? 6 : 1
+  const totaleliveryDays = type === 'P2H2P' ? 4 : 1;
+  const rtoDays = type === 'P2H2P' ? 6 : 1;
   const responseData: any = {
     categories: [
       {
@@ -266,7 +246,14 @@ export const getSearchResponse = async (
         start: {
           time: {
             // average time to pickup (ISO8601 Duration);
-            duration: type === 'P2H2P' ? 'P1D' : category === "Immediate Delivery" ? "PT15M" : category === "Same Day Delivery" ? "PT2H" : "P1D",
+            duration:
+              type === 'P2H2P'
+                ? 'P1D'
+                : category === 'Immediate Delivery'
+                  ? 'PT15M'
+                  : category === 'Same Day Delivery'
+                    ? 'PT2H'
+                    : 'P1D',
           },
         },
         tags: [
@@ -330,7 +317,7 @@ export const getSearchResponse = async (
         },
         price: {
           currency: 'INR',
-          value: `${rtoCharge}`,
+          value: `${parseFloat(rtoCharge + rtoTax).toFixed(2)}`,
         },
         time: {
           label: 'TAT',
@@ -340,14 +327,14 @@ export const getSearchResponse = async (
       },
     ],
   };
-  if (type === "P2H2P") {
-    delete responseData.fulfillments[0].tags
+  if (type === 'P2H2P') {
+    delete responseData.fulfillments[0].tags;
   }
   return { delivery_id, RTO_id, total_charge, weightPrice, taxPrice, responseData };
 };
 
 export const processOrders = (inputOrders: []) => {
-  let orders: any = [...inputOrders]; // Clone the input array to avoid modifying it directly
+  let orders: any = [...inputOrders];
   let foundOrderPickedUp = false;
   let foundOrderDelivered = false;
   let foundOutForDelivery = false;
@@ -359,12 +346,10 @@ export const processOrders = (inputOrders: []) => {
       foundOrderPickedUp = true;
     } else if (foundOrderPickedUp) {
       if (!foundOutForDelivery && order.status === 'Out-for-delivery') {
-        // Delete the first "Out-for-delivery" object
         orders.splice(i, 1);
         foundOutForDelivery = true;
-        i--; // Adjust the index because an element was removed
+        i--;
       } else if (order.status === 'Order-delivered' && !foundOrderDelivered) {
-        // Change the status of the next "Order-delivered" object to "In-transit"
         orders[i].status = 'In-transit';
         foundOrderDelivered = true;
       } else if (
@@ -373,12 +358,40 @@ export const processOrders = (inputOrders: []) => {
         order.status === 'Out-for-pickup' ||
         order.status === 'Order-picked-up'
       ) {
-        // Remove objects with specific statuses
         orders.splice(i, 1);
-        i--; // Adjust the index because an element was removed
+        i--;
       }
     }
   }
 
   return orders;
 };
+
+export function areObjectsEqual(obj1: any, obj2: any) {
+  if (typeof obj1 !== 'object' || typeof obj2 !== 'object') {
+    return false;
+  }
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+
+  if (keys1.length !== keys2.length) {
+    return false;
+  }
+
+  for (let key of keys1) {
+    const val1 = obj1[key];
+    const val2 = obj2[key];
+
+    if (typeof val1 === 'object' && typeof val2 === 'object') {
+      if (!areObjectsEqual(val1, val2)) {
+        return false;
+      }
+    } else {
+      if (val1 !== val2) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}

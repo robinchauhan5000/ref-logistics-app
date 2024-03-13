@@ -315,7 +315,7 @@ class UserService {
       // role?.name === 'Super Admin' ? {role:{$ne:superAdminId}} : { addedBy: userId, _id: { $ne: userId }, role: { $ne: superAdminId } };
       const usersList = await User.find(query)
         .populate({ path: 'role', select: 'name' })
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: 1 })
         .skip(skip)
         .limit(limit);
       const usersCount = await User.find(query).count();
@@ -441,6 +441,8 @@ class UserService {
               tasksInProgressCount: 1,
               totalTasks: 1,
               driverCurrentStatus: 1,
+              firstName: 1,
+              lastName:1
             },
           },
           {
@@ -467,6 +469,9 @@ class UserService {
               tasksInProgressCount: 1,
               totalTasks: 1,
               driverCurrentStatus: 1,
+              firstName: 1,
+              lastName:1
+
             },
           },
           {
@@ -476,7 +481,7 @@ class UserService {
             $facet: {
               drivers: [
                 {
-                  $sort: { createdAt: -1 },
+                  $sort: { createdAt: 1 },
                 },
                 {
                   $skip: parseInt(skip),
@@ -550,7 +555,7 @@ class UserService {
               };
         const admins = await User.find(query)
           .populate({ path: 'role', select: 'name' })
-          .sort({ createdAt: -1 })
+          .sort({ createdAt: 1 })
           .skip(skip)
           .limit(limit);
 

@@ -418,7 +418,13 @@ class TaskController {
       const updatedData = req.body;
 
       const updatedTask = await taskService.updateTask(updatedData);
-      if (updatedTask) {
+      if (updatedTask.data?.error) {
+        res.send({
+          message: 'Some error',
+          task: updatedTask,
+        });
+      }
+      if (!updatedTask.data?.error) {
         const updateStatus = {
           status: 'Agent-assigned',
           taskId: updatedTask._id,
@@ -490,29 +496,8 @@ class TaskController {
         };
         await taskStatusService.create(updateStatus);
         eventEmitter.emit('live_update', { task: 'updated' });
-        // const updatedFulfillment = updatedTask?.fulfillments?.map((item: any) => {
-        //   if (item.type === 'Delivery') {
-        //     return {
-        //       ...item,
-        //       tags: [
-        //         {
-        //           code: 'rider_check',
-        //           list: [
-        //             {
-        //               code: 'inline_check_for_rider',
-        //               value: 'yes',
-        //             },
-        //           ],
-        //         },
-        //       ],
-        //     };
-        //   } else {
-        //     return item;
-        //   }
-        // });
 
         // get charge
-
         const getCharge = await searchDumpService.getSearchDump(updatedTask?.fulfillments[0].id);
 
         const charge: any = getCharge?.charge?.totalCharge;
@@ -599,7 +584,33 @@ class TaskController {
   async cancel(req: Request, res: Response, next: NextFunction) {
     try {
       const { transaction_id, cancellationReasonId } = req.body;
+      let task: any = await Task.findOne({ transaction_id });
+
+      const previousStatus = task?.status;
+      const previousUpdatedTime = new Date(task?.updatedAt);
+      const formattedTime = previousUpdatedTime.toISOString();
       const updatedTask = await taskService.cancel(transaction_id, cancellationReasonId);
+      updatedTask.fulfillments.forEach((eachFulfillment:any)=>{
+        if (eachFulfillment.state.descriptor.code === "Cancelled") {
+          eachFulfillment.tags.push({
+            code: 'precancel_state',
+            list: [
+              {
+                code: 'fulfillment_state',
+                value: previousStatus,
+              },
+              {
+                code: 'updated_at',
+                value: formattedTime,
+              },
+            ],
+          });
+        }
+      }
+      )
+      
+      await Task.findOneAndUpdate({ transaction_id }, updatedTask, { new: true });
+
       eventEmitter.emit('live_update', { task: 'updated' });
 
       const notificationData = {
@@ -650,6 +661,12 @@ class TaskController {
     try {
       const dataToUpdate = req.body;
       const updatedTask = await taskService.updateTaskProtocol(dataToUpdate);
+      if (updatedTask.data?.error) {
+        res.status(200).send({
+          message: 'Some error',
+          updatedTask,
+        });
+      }
       res.status(200).send({
         message: 'Task updated successfully',
         updatedTask,

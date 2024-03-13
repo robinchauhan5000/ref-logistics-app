@@ -20,7 +20,7 @@ router.post('/v1/agent/uploadFile', authentication, upload.array('image'), agent
 router.post('/v1/agent/search', authentication, agentController.search);
 router.post('/v1/agent/getQuotes', authentication, agentController.getQuotes);
 
-router.get('/v1/agent/sse1', taskController.sse);
+router.get('/v1/agent/sse', taskController.sse);
 router.post('/v1/agent/location', authentication, agentController.updateLocation);
 // get liveLocation of agent
 router.get('/v1/agent/liveLocation/:id', authentication, agentController.getLiveLocation);

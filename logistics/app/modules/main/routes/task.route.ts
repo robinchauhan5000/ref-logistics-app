@@ -24,9 +24,10 @@ router.post('/v1/task/updateStatus', authentication, taskController.updateStatus
 router.post('/v1/task/cancel', authentication, taskController.cancelTask);
 router.post('/v1/task/reAssign', authentication, taskController.reAssign);
 router.post('/v1/logistics/cancel', taskController.cancel);
+router.post('/v2/logistics/cancel', taskController.cancel);
 router.post('/v1/logistics/taskStatus', taskController.getTaskStatus);
 router.post('/v2/logistics/taskStatus', taskControllerV2.getTaskStatus);
-
+router.post('/v2/logistics/task/updateTask', taskControllerV2.updateTaskProtocol);
 router.post('/v1/logistics/task/updateTask', taskController.updateTaskProtocol);
 router.post('/v1/logistics/trackOrder', taskController.trackOrder);
 router.post('/v2/logistics/task/init', taskControllerV2.lockAgentForTask)    // for version 1.1.0 init

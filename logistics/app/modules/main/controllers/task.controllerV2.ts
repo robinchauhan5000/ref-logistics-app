@@ -62,6 +62,20 @@ class TaskController {
       next(error);
     }
   }
+  async updateTaskProtocol(req: Request, res: Response, next: NextFunction): Promise<any> {
+    try {
+      const dataToUpdate = req.body;
+      const updatedTask = await taskService.updateTaskProtocol_v2(dataToUpdate);
+      res.status(200).send({
+        message: 'Task updated successfully',
+        updatedTask,
+      });
+    } catch (error: any) {
+      logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
+      next(error);
+    }
+  }
 }
+
 
 export default TaskController;

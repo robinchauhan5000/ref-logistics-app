@@ -30,7 +30,7 @@ interface OrderDetails {
   items: Item[];
   fulfillments: Fulfillment[];
   provider_id: string;
-  merchant_order_id: string;
+  merchant_order_id?: string;
 }
 
 interface AdditionalDescription {
@@ -198,7 +198,7 @@ const IssueSchema: Schema = new Schema(
         },
       ],
       provider_id: { type: String, required: true },
-      merchant_order_id: { type: String, required: true },
+      merchant_order_id: { type: String, required: false },
     },
     description: {
       short_desc: { type: String, required: true },

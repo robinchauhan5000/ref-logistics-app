@@ -261,5 +261,10 @@ interface Message {
 
 export interface On_update {
   context: Context
-  message: Message
+  message?: Message
+  error?: {
+    type: string
+    code: string
+    message: string
+  }
 }

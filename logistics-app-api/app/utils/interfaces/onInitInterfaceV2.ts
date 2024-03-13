@@ -42,7 +42,7 @@ export interface On_initV2 {
       provider: {
         id: string
       }
-      provider_location: {
+      provider_location?: {
         id: string
       }
       items: {

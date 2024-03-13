@@ -7,7 +7,7 @@ class HubController {
   public async createHub(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const newHub = await hubService.createHub(req.body);
-      res.status(201).json({ message: 'Hub Created.', data: newHub });
+      res.status(201).json({ message: 'Hub created successfully.', data: newHub });
     } catch (error) {
       next(error);
     }
@@ -34,9 +34,9 @@ class HubController {
       const hubId = req.params.id;
 
       const hubDetails = await hubService.getHubById(hubId);
-      if (hubDetails) res.json({ message: ' List found', data: hubDetails });
+      if (hubDetails) res.json({ message: 'Hub found', data: hubDetails });
       else {
-        res.send({ message: ' List not found', data: hubDetails });
+        res.send({ message: 'Hub not found', data: hubDetails });
       }
     } catch (error) {
       next(error);
@@ -49,7 +49,7 @@ class HubController {
       const payload = req.body;
       const updatedHub = await hubService.updateHub(hubId, payload);
       if (updatedHub) {
-        res.send({ message: 'Hub details updated' });
+        res.send({ message: 'Status changed successfully.' });
       }
     } catch (error) {
       next(error);
@@ -61,7 +61,7 @@ class HubController {
       const hubId = req.params.id;
       const deletedHub = await hubService.deleteHub(hubId);
       if (deletedHub) {
-        res.send({ message: 'Hub deleted', data: deletedHub });
+        res.send({ message: 'Hub deleted successfully.', data: deletedHub });
       }
     } catch (error) {
       next(error);

@@ -13,8 +13,7 @@ import {
   getTrackOrder,
 } from '../utils/schemaMapping'
 
-import { getInitV2, getConfirmV2,getStatusV2 } from '../utils/schemaMappingV2'
-import { getAgentsV2 } from '../utils/schemaMappingV2'
+import { getInitV2, getConfirmV2, getStatusV2, getAgentsV2, getUpdateV2, getCancelV2 } from '../utils/schemaMappingV2'
 
 class LogisticsService {
   async search(searchRequest: any, _searchMessageId: any) {
@@ -42,7 +41,7 @@ class LogisticsService {
       fulfillments: [fulfillment],
       payment: {
         type: payment?.type,
-        collection_amount: payment?.['@ondc/org/collection_amount']
+        collection_amount: payment?.['@ondc/org/collection_amount'],
       },
     }
     let apiEndpoint = '/api/v1/logistics/agent/search'
@@ -140,9 +139,7 @@ class LogisticsService {
         'PUT',
         {
           ...searchParams,
-          payment: {
-            ...searchParams.payment,
-          },
+          payment: searchParams.payment,
 
           linked_order: searchParams['@ondc/org/linked_order'],
           transaction_id: confirmRequest.context.transaction_id,
@@ -187,9 +184,14 @@ class LogisticsService {
         context: updateRequest.context,
         order: updateRequest.message.order,
       }
+
+      let apiEndpoint = '/api/v1/logistics/task/updateTask'
+      if (updateRequest.context.core_version === '1.1.0') {
+        apiEndpoint = `/api/v2/logistics/task/updateTask`
+      }
       const httpRequest = new HttpRequest(
         serverUrl,
-        `/api/v1/logistics/task/updateTask`, //TODO: allow $like query
+        apiEndpoint, //TODO: allow $like query
         'POST',
         updatePayload,
         headers,
@@ -197,7 +199,12 @@ class LogisticsService {
       const result = await httpRequest.send()
       const context = updateRequest.context
 
-      const updateData = await getUpdate({ data: result.data, context: { ...context } })
+      let updateData
+      if (updateRequest.context.core_version === '1.2.0') {
+        updateData = await getUpdate({ data: result.data, context: { ...context } })
+      } else {
+        updateData = await getUpdateV2({ data: result.data, context: { ...context } })
+      }
       return updateData
     } catch (error) {
       return error
@@ -250,8 +257,9 @@ class LogisticsService {
         headers,
       )
       const result = await httpRequest.send()
-      const statusData = await getSupport({ data: result.data, context: supportRequest.context })
-      return statusData
+      const supportData = await getSupport({ data: result.data, context: supportRequest.context })
+
+      return supportData
     } catch (error) {
       return error
     }
@@ -265,14 +273,27 @@ class LogisticsService {
         transaction_id: cancelRequest.context.transaction_id,
         cancellationReasonId: cancelRequest.message.cancellation_reason_id,
       }
-      const httpRequest = new HttpRequest(serverUrl, `/api/v1/logistics/cancel`, 'POST', cancelPayload, headers)
+      let apiEndpoint = '/api/v1/logistics/cancel'
+      if (cancelRequest.context.core_version === '1.1.0') {
+        apiEndpoint = `/api/v2/logistics/cancel`
+      }
+      const httpRequest = new HttpRequest(serverUrl, apiEndpoint, 'POST', cancelPayload, headers)
       const result = await httpRequest.send()
       const context = cancelRequest.context
-      const cancelData = await getCancel({
-        data: result.data,
-        context: { ...context },
-        cancellationReasonId: cancelRequest.message.cancellation_reason_id,
-      })
+      let cancelData
+      if (cancelRequest.context.core_version === '1.1.0') {
+        cancelData = await getCancelV2({
+          data: result.data,
+          context: { ...context },
+          cancellationReasonId: cancelRequest.message.cancellation_reason_id,
+        })
+      } else {
+        cancelData = await getCancel({
+          data: result.data,
+          context: { ...context },
+          cancellationReasonId: cancelRequest.message.cancellation_reason_id,
+        })
+      }
       return cancelData
     } catch (error) {
       return error
