@@ -6,6 +6,8 @@ import TicketStatusService from '../../modules/main/v1/services/taskStatus.servi
 import cron from 'node-cron';
 import ModifyPayload from './modifyPayload';
 import HttpRequest from './HttpRequest';
+import InternalServerError from '../errors/internal-server-error.error';
+import MESSAGES from './messages';
 
 const modifyPayload = new ModifyPayload();
 // import Agent from '../../modules/main/models/agent.model';
@@ -128,11 +130,16 @@ const assignNewDriver = async () => {
       // agentId: task.assignee
     }
     await taskStatusService.create(taskUpdateDetails)
-    const searchCoordinates = task.otherFulfillments[1].start.location.address.location.coordinates.join(",")
+    const searchCoordinates = task?.otherFulfillments[1]?.start?.location?.address?.location?.coordinates?.join(",")||"0,0";
+    console.log("searchCoordinates++++++++++searchCoordinates",searchCoordinates);
+    
+    if(!searchCoordinates){
+      return false ;
+    }
     const agent =  await agentService.searchAgent(searchCoordinates, "")
     console.log({agent: agent.agents[0]})
     const agentDetails = agent.agents[0]
-
+    if(agentDetails?._id){
     task.status = 'At-destination-hub'
     task.assignee = agentDetails._id
 
@@ -175,11 +182,14 @@ const assignNewDriver = async () => {
       status: "Agent-assigned", 
       agentId: agentDetails._id
     })
-    
+  }
+    return true;
   })
-
-
-  } catch (error) {
+  }
+    catch (error) {
+      console.log("error+++++",error);
+      
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     
   }
 }

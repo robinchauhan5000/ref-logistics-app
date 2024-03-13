@@ -200,7 +200,8 @@ class AuthenticationService {
       if (otp === '0701') {
         await User.findOneAndUpdate(
           { mobile: userPhone },
-          { $unset: { failedLoginAttempts: 1, isAccountLocked: 1, accountLockedAt: 1 } },
+          { $set: { failedLoginAttempts: 0, isAccountLocked: false } },
+          { $unset: { accountLockedAt: 1 } },
         );
         await User.aggregate([
           {
@@ -294,7 +295,7 @@ class AuthenticationService {
             {
               userId: updatedUser._id,
             },
-            { $set: { isAvailable: false } },
+            { $set: { isAvailable: false, isOnline: false } },
           );
           throw new BadRequestParameterError(MESSAGES.ACCOUNT_LOCKED);
         }
@@ -530,7 +531,8 @@ class AuthenticationService {
 
   async checkContactNumber(contactNumber: string) {
     try {
-      const contactExist: ICurrentUser | null = await User.findOne({ mobile: contactNumber });
+      const role: any = await Role.findOne({ name: 'Agent' });
+      const contactExist: ICurrentUser | null = await User.findOne({ mobile: contactNumber,role:role._id });
       if (!contactExist) {
         throw new NoRecordFoundError(MESSAGES.USER_PHONE_DOES_NOT_EXIST);
       } else if ([0, 2].includes(contactExist.enabled)) {
@@ -546,6 +548,7 @@ class AuthenticationService {
       }
     }
   }
+
   async logout(userId: string) {
     try {
       await User.findByIdAndUpdate(

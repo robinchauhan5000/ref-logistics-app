@@ -5,8 +5,10 @@ import MESSAGES from '../../../../lib/utils/messages';
 import TaskStatusService from './taskStatus.service';
 import Agent from '../../models/agent.model';
 import SearchDumpService from './searchDump.service';
-import { formatedDate } from '../../../../lib/utils/utilityFunctions';
+import { formatedDate, durationToTimestamp } from '../../../../lib/utils/utilityFunctions';
 import { generateEndTime, generateStartTime } from '../../../../lib/utils/modifyRange.util';
+import { durationToSeconds } from '../../../../lib/utils/durationToSeconds.util';
+// import getDistance2 from '../../../../lib/utils/distanceCalculation.util';
 
 const taskStatusService = new TaskStatusService();
 const searchDumpService = new SearchDumpService();
@@ -67,12 +69,16 @@ class TaskService {
         throw new DuplicateRecordFoundError(MESSAGES.DUPLICATE_TRANSACTION_ID);
       }
 
+      const paymentType = data?.payment?.type === 'ON-FULFILLMENT' ? 'BPP' : 'BAP';
+
       const task = new Task({
         ...data,
         assignee: data.agentId,
-        'payment.collected_by': 'BPP',
-        'payment.@ondc/org/collection_amount': '300',
-        type: 'ON-FULFILLMENT',
+        payment: {
+          ...data.payment,
+          collected_by: paymentType,
+        },
+        type: data?.payment?.type,
       });
       task.trackingUrl = `${process.env.MAIN_SITE_URL}/order/status/${task._id}`;
       await task.save();
@@ -100,7 +106,7 @@ class TaskService {
       const queryObject = {
         status: { $nin: ['Pending', 'Searching-for-Agent'] },
         $or: [
-          { task_id: { $regex: searchString, $options: 'i' } },
+          { 'linked_order.order.id': { $regex: searchString, $options: 'i' } },
           { status: { $regex: searchString, $options: 'i' } },
         ],
       };
@@ -112,6 +118,8 @@ class TaskService {
         linked_order: 1,
         assignee: 1,
         orderConfirmedAt: 1,
+        quote: 1,
+        billing: 1,
       })
         .populate({
           path: 'assignee',
@@ -143,7 +151,7 @@ class TaskService {
       const queryObject = {
         status: { $in: ['Searching-for-Agent'] },
         $or: [
-          { task_id: { $regex: searchString, $options: 'i' } },
+          { 'linked_order.order.id': { $regex: searchString, $options: 'i' } },
           { status: { $regex: searchString, $options: 'i' } },
         ],
       };
@@ -154,6 +162,8 @@ class TaskService {
         items: 1,
         linked_order: 1,
         orderConfirmedAt: 1,
+        quote: 1,
+        billing: 1,
       })
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -261,10 +271,15 @@ class TaskService {
     }
   }
 
-  async updateStatus(taskId: string, status: string): Promise<any> {
+  async updateStatus(taskId: string, status: string, driverCancel: boolean = false): Promise<any> {
+    console.log('taskId++++', taskId);
+    console.log('status++++', status);
+
     try {
       let updatedTask;
       const task: any = await Task.findById(taskId).lean();
+      console.log('task++++', JSON.stringify(task));
+
       if (!task) {
         throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
       }
@@ -272,7 +287,7 @@ class TaskService {
         if (task?.items[0]?.descriptor?.code === 'P2H2P' && task?.status === 'Agent-assigned') {
           const updateFulfillments = {
             'fulfillments.0.state.descriptor.code': status,
-            'fulfillments.0.tracking': false,
+            'fulfillments.0.tracking': true,
           };
           updatedTask = await Task.findOneAndUpdate(
             { _id: taskId },
@@ -365,7 +380,7 @@ class TaskService {
             const updateFulfillments = {
               'fulfillments.0.end.time.timestamp': orderDeliveredAt,
               'fulfillments.0.state.descriptor.code': 'Order-delivered',
-              'fulfillments.0.tracking': false,
+              'fulfillments.0.tracking': true,
             };
             updatedTask = await Task.findOneAndUpdate(
               { _id: taskId },
@@ -383,7 +398,7 @@ class TaskService {
           } else {
             const updateFulfillments = {
               'fulfillments.0.state.descriptor.code': 'In-transit',
-              'fulfillments.0.tracking': false,
+              'fulfillments.0.tracking': true,
             };
             updatedTask = await Task.findOneAndUpdate(
               { _id: taskId },
@@ -401,7 +416,7 @@ class TaskService {
           const updateFulfillments = {
             'fulfillments.0.end.time.timestamp': orderDeliveredAt,
             'fulfillments.0.state.descriptor.code': status,
-            'fulfillments.0.tracking': false,
+            'fulfillments.0.tracking': true,
           };
 
           const updatePayment = {
@@ -431,7 +446,7 @@ class TaskService {
         const updateFulfillments = {
           'fulfillments.1.end.time.timestamp': new Date().toISOString(),
           'fulfillments.1.state.descriptor.code': status,
-          'fulfillments.0.tracking': false,
+          'fulfillments.0.tracking': true,
         };
         updatedTask = await Task.findOneAndUpdate(
           { _id: taskId },
@@ -443,8 +458,7 @@ class TaskService {
       } else if (status === 'Customer-not-found') {
         const tags = task?.fulfillments[0]?.tags.filter((obj: any) => obj?.code === 'rto_action');
         const cancellationReasonId = '013';
-        // RTO-Disposed
-        if (tags[0]?.list[0]?.value === 'no') {
+        if (driverCancel) {
           if (task?.assignee) {
             await Agent.findByIdAndUpdate(task?.assignee, { $set: { isAvailable: 'true' } });
           }
@@ -452,9 +466,10 @@ class TaskService {
             { _id: taskId },
             {
               $set: {
-                status: 'RTO-Disposed',
+                status: 'Cancelled',
                 orderCancelledBy: BPP_ID,
                 'fulfillments.0.state.descriptor.code': 'Cancelled',
+                'fulfillments.0.end.time.timestamp': new Date().toISOString(),
                 cancellationReasonId: cancellationReasonId,
                 trackStatus: 'inactive',
               },
@@ -465,7 +480,32 @@ class TaskService {
 
           return updatedTask;
         }
-        const deliveryID = task.fulfillments.find((item: any) => item.type === 'Delivery' || item.type === 'Return').id;
+        // RTO-Disposed
+        if (tags[0]?.list[0]?.value === 'no' || !tags[0]?.list?.length) {
+          if (task?.assignee) {
+            await Agent.findByIdAndUpdate(task?.assignee, { $set: { isAvailable: 'true' } });
+          }
+          updatedTask = await Task.findOneAndUpdate(
+            { _id: taskId },
+            {
+              $set: {
+                status: 'RTO-Initiated',
+                orderCancelledBy: BPP_ID,
+                'fulfillments.0.state.descriptor.code': 'RTO-Initiated',
+                'fulfillments.0.end.time.timestamp': new Date().toISOString(),
+                cancellationReasonId: cancellationReasonId,
+                trackStatus: 'inactive',
+              },
+              // $unset: { assignee: '' },
+            },
+            { new: true },
+          ).lean();
+
+          return updatedTask;
+        }
+        const deliveryID = task.fulfillments.find(
+          (item: any) => item.type === 'Delivery' || item.type === 'Return',
+        )?.id;
 
         const get_RTO_ID: any = await searchDumpService.getSearchDump(deliveryID);
 
@@ -480,7 +520,7 @@ class TaskService {
           '@ondc/org/title_type': 'rto',
           price: {
             currency: 'INR',
-            value: `${((parseFloat(deliveryPrice) * 30) / 100).toFixed(2)}`,
+            value: (parseFloat(rtoPrice) - parseFloat(rtoTax)).toFixed(2),
           },
         };
         const RTOTaxQuote = {
@@ -491,21 +531,24 @@ class TaskService {
             value: rtoTax,
           },
         };
+
         const newRTOItem = {
           id: 'rto',
-          fulfillment_id: get_RTO_ID.rto,
-          category_id: 'Immediate Delivery',
+          fulfillment_id: get_RTO_ID?.rto,
+          category_id: task.items[0].time.duration,
           descriptor: {
             code: 'P2P',
           },
           time: {
             label: 'TAT',
-            duration: 'PT60M',
-            timestamp: formatedDate(`${new Date().toISOString()}`),
+            duration: task.items[0].time.duration,
+            timestamp: formatedDate(durationToTimestamp(task.items[0].time.duration)),
           },
         };
+        const startRange = await generateStartTime('Immediate Delivery');
+        const endRange = await generateEndTime('Immediate Delivery');
         const newRTOFulfillment = {
-          id: get_RTO_ID.rto,
+          id: get_RTO_ID?.rto,
           type: 'RTO',
           state: {
             descriptor: {
@@ -514,7 +557,13 @@ class TaskService {
           },
           start: {
             time: {
+              range: startRange,
               timestamp: new Date().toISOString(),
+            },
+          },
+          end: {
+            time: {
+              range: endRange,
             },
           },
         };
@@ -525,7 +574,7 @@ class TaskService {
             code: 'rto_event',
             list: [
               { code: 'retry_count', value: '1' },
-              { code: 'rto_id', value: get_RTO_ID.rto },
+              { code: 'rto_id', value: get_RTO_ID?.rto },
               { code: 'cancellation_reason_id', value: cancellationReasonId },
               { code: 'sub_reason_id', value: '004' },
               { code: 'cancelled_by', value: BPP_ID },
@@ -579,18 +628,22 @@ class TaskService {
     try {
       const tasks = await Task.find(
         {
-          $or: [{ assignee: agentId }, { 'otherFulfillments.assignee': agentId }],
+          $and: [
+            { status: { $ne: 'Pending' }, $or: [{ assignee: agentId }, { 'otherFulfillments.assignee': agentId }] },
+          ],
         },
         {
           task_id: 1,
           status: 1,
           'product.items': 1,
           fulfillments: 1,
+          linked_order: 1,
           items: 1,
           createdAt: 1,
           updatedAt: 1,
           orderConfirmedAt: 1,
           otherFulfillments: 1,
+          payment: 1,
         },
       ).sort({ createdAt: -1 });
       return tasks;
@@ -604,8 +657,9 @@ class TaskService {
   }
 
   async updateTask(updatedData: any): Promise<any> {
+    let updatedTask: any;
     try {
-      
+      const startLoc = updatedData.fulfillments[0].start.location.gps.split(',');
       const startRange = await generateStartTime(updatedData.items[0].category_id);
       const endRange = await generateEndTime(updatedData.items[0].category_id);
       const readyToShipState: string = updatedData.fulfillments
@@ -613,12 +667,49 @@ class TaskService {
         .tags.find((tag: any) => tag.code === 'state').list[0].value;
 
       const agentDetails: any = await Agent.findOne({ _id: updatedData.provider.id })
-        .select('userId vehicleDetails')
+        .select('userId vehicleDetails currentLocation')
         .populate({
           path: 'userId',
           select: 'name mobile',
         });
+      const agentLoc = agentDetails.currentLocation.coordinates;
+      startLoc;
+      agentLoc;
+      // const distance = await getDistance2(startLoc, agentLoc);
+      const distance = 4;
+
+      // let storedOrder = await searchDumpService.getSearchDump(updatedData.fulfillments[0]?.id)
+      // storedOrder = await removeIdKeys(storedOrder)
+      // const newOrder = updatedData.linked_order?.order
+      // delete newOrder?.id
+      // const isEqual = areObjectsEqual(storedOrder?.order, newOrder)
+      // if(!isEqual) {
+      //   updatedTask = {
+      //     data: {
+      //       error: {
+      //         type: 'DOMAIN-ERROR',
+      //         code: '60011',
+      //         message: 'Difference in packaging details',
+      //       },
+      //     },
+      //   }
+      //   return updatedTask;
+      // }
+
+      if (distance > 5) {
+        updatedTask = {
+          data: {
+            error: {
+              type: 'DOMAIN-ERROR',
+              code: '60004',
+              message: 'Delivery partners not available',
+            },
+          },
+        };
+        return updatedTask;
+      }
       if (readyToShipState === 'yes') {
+        updatedData.updatedAt = Date.now();
         const updatedFulfillments = updatedData.fulfillments.map((fulfillment: any) => {
           if (fulfillment.type === 'Delivery' || fulfillment.type === 'Return') {
             fulfillment.start.time = {
@@ -630,7 +721,7 @@ class TaskService {
               range: endRange,
             };
             fulfillment.state = { descriptor: { code: 'Agent-assigned' } };
-            fulfillment.tracking = false;
+            fulfillment.tracking = true;
             fulfillment.agent = {
               name: agentDetails.userId.name,
               mobile: agentDetails.userId.mobile,
@@ -644,20 +735,21 @@ class TaskService {
         updatedData.fulfillments = updatedFulfillments;
       } else {
         updatedData.fulfillments[0].state = { descriptor: { code: 'Pending' } };
+        updatedData.fulfillments[0].tracking = false;
         updatedData.status = 'Searching-for-Agent';
-        updatedData.payment = {
-          ...updatedData.payment,
-          'payment.status': 'NOT-PAID',
-        };
       }
-      const updatedTask = await Task.findOneAndUpdate(
+
+      updatedData.payment.status = updatedData.payment.type === 'ON-FULFILLMENT' ? 'PAID' : 'NOT-PAID';
+      updatedData.payment.collected_by = updatedData.payment.type === 'ON-FULFILLMENT' ? 'BPP' : 'BAP';
+
+      updatedTask = await Task.findOneAndUpdate(
         { transaction_id: updatedData.transaction_id },
-        { $set: { ...updatedData } },
+        { $set: updatedData },
         { new: true },
       );
       return updatedTask;
     } catch (error: any) {
-      console.log({ error });
+      console.log(error);
       throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     }
   }
@@ -849,6 +941,7 @@ class TaskService {
   async cancel(transaction_id: string, cancellationReasonId: string) {
     try {
       const task: any = await Task.findOne({ transaction_id }).lean();
+      const api_version = JSON.parse(task.context).core_version;
       if (task) {
         const chargeableStatus: any = [
           'Order-picked-up',
@@ -858,6 +951,85 @@ class TaskService {
           'RTO-Disposed',
         ];
         // check for TAT
+        const reasonIds: Array<string> = [
+          '001',
+          '002',
+          '003',
+          '004',
+          '005',
+          '006',
+          '007',
+          '008',
+          '009',
+          '010',
+          '011',
+          '012',
+          '013',
+          '014',
+          '015',
+        ];
+
+        if (!reasonIds.includes(cancellationReasonId)) {
+          throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+        }
+        if (api_version === '1.1.0') {
+          console.log('api version 1.1.0');
+          console.log({ task });
+          if (chargeableStatus?.includes(task.status)) {
+            //set cancellation charges
+            task.cancellationAmount = 200;
+          } else {
+            //no cancellation charges
+            task.cancellationAmount = 0;
+          }
+          task.orderCancelledBy = task.orderCancelledBy ? task.orderCancelledBy : task.bap_id;
+          task.status = 'Cancelled';
+          task.cancellationReasonId = cancellationReasonId;
+          // task.assignee = '';
+          const updatedTask = await Task.findOneAndUpdate(
+            { _id: task._id },
+            {
+              $set: task,
+              // $unset: { assignee: '' },
+            },
+            { new: true },
+          ).lean();
+          return updatedTask;
+        }
+        console.log(task);
+        // if (task.status === 'Agent-assigned') {
+        //   const updatedTask = await Task.findOneAndUpdate(
+        //     { _id: task._id },
+        //     {
+        //       $set: {
+        //         status: 'Cancelled',
+        //         orderCancelledBy: task.orderCancelledBy ? task.orderCancelledBy : task.bap_id,
+        //         'fulfillments.0.state.descriptor.code': 'Cancelled',
+        //         cancellationReasonId: cancellationReasonId,
+        //       },
+        //       // $unset: { assignee: '' },
+        //     },
+        //     { new: true },
+        //   ).lean();
+        //   return updatedTask;
+        // }
+        const secondsDuration = durationToSeconds(task.items[0].time.duration);
+        const lastUpdate = task.updatedAt;
+
+        const timeDifference = Date.now() - lastUpdate;
+
+        if (timeDifference < secondsDuration && cancellationReasonId == '007') {
+          return {
+            data: {
+              error: {
+                type: 'DOMAIN-ERROR',
+                code: '60010',
+                message: 'Cancellation request is rejected as fulfillment TAT is not breached',
+              },
+            },
+          };
+        }
+        // rto and cancel
 
         let cancellationAmount = 0;
         if (chargeableStatus?.includes(task.status)) {
@@ -879,9 +1051,9 @@ class TaskService {
             { _id: task._id },
             {
               $set: {
-                status: 'RTO-Disposed',
+                status: 'RTO-Initiated',
                 orderCancelledBy: task?.bap_id,
-                'fulfillments.0.state.descriptor.code': 'Cancelled',
+                'fulfillments.0.state.descriptor.code': 'RTO-Initiated',
                 cancellationReasonId: cancellationReasonId,
                 trackStatus: 'inactive',
                 cancellationAmount,
@@ -890,16 +1062,18 @@ class TaskService {
             },
             { new: true },
           ).lean();
-
           return updatedTask;
         } else {
           const deliveryID = task.fulfillments.find((item: any) => item.type === 'Delivery').id;
+          console.log("deliveryID>>>>>>",deliveryID)
 
           const get_RTO_ID: any = await searchDumpService.getSearchDump(deliveryID);
+         console.log("get_RTO_ID>>>>>>",JSON.stringify(get_RTO_ID))
 
           const deliveryPrice = task.quote.price.value;
 
           const rtoPrice = ((parseFloat(deliveryPrice) * 30) / 100).toFixed(2);
+
           const rtoTax = ((parseFloat(rtoPrice) * 10) / 100).toFixed(2);
 
           const RTOPriceQuote = {
@@ -908,9 +1082,10 @@ class TaskService {
             '@ondc/org/title_type': 'rto',
             price: {
               currency: 'INR',
-              value: `${((parseFloat(deliveryPrice) * 30) / 100).toFixed(2)}`,
+              value: (parseFloat(rtoPrice) - parseFloat(rtoTax)).toFixed(2),
             },
           };
+
           const RTOTaxQuote = {
             '@ondc/org/item_id': 'rto',
             '@ondc/org/title_type': 'tax',
@@ -919,21 +1094,24 @@ class TaskService {
               value: rtoTax,
             },
           };
+
           const newRTOItem = {
             id: 'rto',
-            fulfillment_id: get_RTO_ID.rto,
-            category_id: 'Immediate Delivery',
+            fulfillment_id: get_RTO_ID?.rto,
+            category_id: task.items[0].category_id,
             descriptor: {
               code: 'P2P',
             },
             time: {
               label: 'TAT',
-              duration: 'PT60M',
-              timestamp: formatedDate(`${new Date().toISOString()}`),
+              duration: task.items[0].time.duration,
+              timestamp: formatedDate(durationToTimestamp(task.items[0].time.duration)),
             },
           };
+          const startRange = await generateStartTime('Immediate Delivery');
+          const endRange = await generateEndTime('Immediate Delivery');
           const newRTOFulfillment = {
-            id: get_RTO_ID.rto,
+            id: get_RTO_ID?.rto,
             type: 'RTO',
             state: {
               descriptor: {
@@ -942,7 +1120,13 @@ class TaskService {
             },
             start: {
               time: {
+                range: startRange,
                 timestamp: new Date().toISOString(),
+              },
+            },
+            end: {
+              time: {
+                range: endRange,
               },
             },
           };
@@ -953,14 +1137,13 @@ class TaskService {
               code: 'rto_event',
               list: [
                 { code: 'retry_count', value: '1' },
-                { code: 'rto_id', value: get_RTO_ID.rto },
+                { code: 'rto_id', value: get_RTO_ID?.rto },
                 { code: 'cancellation_reason_id', value: cancellationReasonId },
                 { code: 'sub_reason_id', value: '004' },
                 { code: 'cancelled_by', value: task?.bap_id },
               ],
             },
           ];
-
           await Task.findOneAndUpdate(
             { _id: task._id },
             {
@@ -991,15 +1174,16 @@ class TaskService {
           ).lean();
           return updatedTask;
         }
-        // task.orderCancelledBy = task.orderCancelledBy ? task.orderCancelledBy : task.bap_id;
-        // task.status = 'Cancelled';
-        // task.cancellationReasonId = cancellationReasonId;
-        // task.assignee = '';
       }
+      // task.orderCancelledBy = task.orderCancelledBy ? task.orderCancelledBy : task.bap_id;
+      // task.status = 'Cancelled';
+      // task.cancellationReasonId = cancellationReasonId;
+      // task.assignee = '';
 
       await task.save();
       return task;
     } catch (error) {
+      console.log({ error });
       throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     }
   }
@@ -1008,7 +1192,7 @@ class TaskService {
     try {
       const queryObject = {
         assignee: agentId,
-        status: { $in: ['RTO-Delivered', 'RTO-Disposed', 'Order-delivered', 'Cancelled'] },
+        status: { $in: ['RTO-Delivered', 'RTO-Disposed', 'RTO-Initiated', 'Order-delivered', 'Cancelled'] },
       };
       const tasks: any = await Task.find(queryObject, {
         task_id: 1,
@@ -1061,20 +1245,58 @@ class TaskService {
   }
 
   async updateTaskProtocol(dataToUpdate: any) {
+    let updatedTask: any;
     try {
       const { context, order } = dataToUpdate;
       const existingTask: any = await Task.findOne({ transaction_id: context.transaction_id });
       if (!existingTask) {
         throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
       }
+      const startLoc = existingTask.fulfillments[0].start.location.gps.split(',');
       const startRange = await generateStartTime(existingTask.items[0].category_id);
       const endRange = await generateEndTime(existingTask.items[0].category_id);
       const agentDetails: any = await Agent.findOne({ _id: existingTask.assignee })
-        .select('userId vehicleDetails')
+        .select('userId vehicleDetails currentLocation')
         .populate({
           path: 'userId',
           select: 'name mobile',
         });
+      const agentLoc = agentDetails.currentLocation.coordinates;
+      agentLoc;
+      startLoc;
+      // const dista      const distance = 4;
+      const distance = 4;
+
+      // let storedOrder = await searchDumpService.getSearchDump(existingTask.fulfillments[0]?.id)
+      // storedOrder = await removeIdKeys(storedOrder)
+      // const newOrder = order.linked_order?.order
+      // delete newOrder?.id
+      // const isEqual = areObjectsEqual(storedOrder?.order, newOrder)
+      // if(!isEqual) {
+      //   updatedTask = {
+      //     data: {
+      //       error: {
+      //         type: 'DOMAIN-ERROR',
+      //         code: '60011',
+      //         message: 'Difference in packaging details',
+      //       },
+      //     },
+      //   }
+      //   return updatedTask;
+      // }
+
+      if (distance > 5) {
+        updatedTask = {
+          data: {
+            error: {
+              type: 'DOMAIN-ERROR',
+              code: '60004',
+              message: 'Delivery partners not available',
+            },
+          },
+        };
+        return updatedTask;
+      }
       const readyToShipState = order?.fulfillments
         .find((fulfilment: any) => fulfilment.type === 'Delivery' || fulfilment.type === 'Return')
         .tags.find((tag: any) => tag.code === 'state').list[0].value;
@@ -1082,7 +1304,6 @@ class TaskService {
       if (readyToShipState === 'yes') {
         const updatedFulfillments = fulfillments.map((fulfillment: any) => {
           if (fulfillment.type === 'Delivery' || fulfillment.type === 'Return') {
-
             fulfillment.start.time = {
               ...fulfillment.start.time,
               range: startRange,
@@ -1117,13 +1338,12 @@ class TaskService {
                 return tag;
               }
             });
-            console.log(existingTask?.items[0]?.descriptor?.code === "P2H2P")
-            if(existingTask?.items[0]?.descriptor?.code === "P2H2P"){
+            console.log(existingTask?.items[0]?.descriptor?.code === 'P2H2P');
+            if (existingTask?.items[0]?.descriptor?.code === 'P2H2P') {
               fulfillment.start.instructions = {
-                images : "https://ref-logistics-app-staging-bucket.s3.ap-south-1.amazonaws.com/1696662276710.jpeg"
-              }
+                images: 'https://ref-logistics-app-staging-bucket.s3.ap-south-1.amazonaws.com/1696662276710.jpeg',
+              };
             }
-            console.log({fulfillment})
             return fulfillment;
           } else {
             return fulfillment;
@@ -1189,9 +1409,91 @@ class TaskService {
         );
       }
 
+      updatedTask = await Task.findOneAndUpdate(
+        { transaction_id: context.transaction_id },
+        {
+          $set: {
+            fulfillments: dataToUpdate.fulfillments,
+            status: 'Agent-assigned',
+            'payment.status': 'NOT-PAID',
+            'fulfillments.[0].id': dataToUpdate.fulfillments[0].id,
+          },
+        },
+        { new: true },
+      );
+      return updatedTask;
+    } catch (error: any) {
+      if (error.status === 404 || error.status === 401) {
+        throw error;
+      } else {
+        throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+  async updateTaskProtocol_v2(dataToUpdate: any) {
+    try {
+      const { context, order } = dataToUpdate;
+      const currentTime = Date.now();
+      const existingTask: any = await Task.findOne({ transaction_id: context.transaction_id });
+
+      if (!existingTask) {
+        throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
+      }
+      const agentDetails: any = await Agent.findOne({ _id: existingTask.assignee })
+        .select('userId vehicleDetails')
+        .populate({
+          path: 'userId',
+          select: 'name mobile',
+        });
+
+      //v1.1
+      const readyToShipState = order?.fulfillments.find((fulfilment: any) => fulfilment.type === 'CoD' || 'Prepaid')
+        .tags['@ondc/org/order_ready_to_ship'];
+      const fulfillments: any = existingTask.fulfillments;
+      if (readyToShipState === 'yes') {
+        const updatedFulfillments = fulfillments.map((fulfillment: any) => {
+          if (fulfillment.type === 'CoD' || 'Prepaid') {
+            fulfillment.start.time = {
+              range: {
+                start: new Date(currentTime).toISOString(),
+                end: new Date(currentTime + 15 * 60 * 1000).toISOString(),
+              },
+            };
+            fulfillment.end.time = {
+              range: {
+                start: new Date(currentTime + 45 * 60 * 1000).toISOString(),
+                end: new Date(currentTime + 60 * 60 * 1000).toISOString(),
+              },
+            };
+
+            fulfillment.state = { descriptor: { code: 'Agent-assigned' } };
+            fulfillment.tracking = false;
+            fulfillment.start.instructions = order?.fulfillments.find(
+              (fulfilment: any) => fulfilment.type === 'CoD',
+            )?.start.instructions;
+            fulfillment.agent = {
+              name: agentDetails.userId.name,
+              mobile: agentDetails.userId.mobile,
+            };
+            fulfillment.vehicle = { registration: agentDetails?.vehicleDetails?.vehicleNumber };
+            fulfillment.tags[0]['@ondc/org/order_ready_to_ship'] = 'yes';
+            return fulfillment;
+          } else {
+            return fulfillment;
+          }
+        });
+        dataToUpdate.order.fulfillments = updatedFulfillments;
+      }
+
       const updatedTask: any = await Task.findOneAndUpdate(
         { transaction_id: context.transaction_id },
-        { $set: { fulfillments: dataToUpdate.fulfillments, status: 'Agent-assigned', 'payment.status': 'NOT-PAID' } },
+        {
+          $set: {
+            fulfillments: dataToUpdate?.order?.fulfillments,
+            status: 'Agent-assigned',
+            'payment.status': 'NOT-PAID',
+          },
+        },
         { new: true },
       );
       return updatedTask;

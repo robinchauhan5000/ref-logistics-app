@@ -8,18 +8,25 @@ import logisticsConstants from '../../../config/constant/logisticsConstants';
 import { removeProtocolFromURL } from '../../../lib/utils/commonHelper.util';
 import HttpRequest from '../../../lib/utils/HttpRequest';
 import ModifyPayload from '../../../lib/utils/modifyPayload';
+import UserService from '../v1/services/user.service';
 
 const issueServie = new IssueService();
 const issueStatusService = new IssueStatusService();
 const applicationSettingService = new ApplicationSettingService();
 const modifyPayload = new ModifyPayload();
+const userService = new UserService()
 
 const clientURL = process.env.PROTOCOL_BASE_URL || '';
+
+interface CustomRequest extends Request {
+  user?: any;
+}
 class IssueController {
-  async createIssue(req: Request, res: Response, next: NextFunction) {
+  async createIssue(req: CustomRequest, res: Response, next: NextFunction) {
     try {
       const data = req.body;
       if (data?.status === 'OPEN') {
+      
         const appSettings: any = await applicationSettingService.getSupport();
         const respondentAction = {
           respondent_action: 'PROCESSING',
@@ -40,8 +47,12 @@ class IssueController {
           cascaded_level: 2,
         };
         data.updated_at = new Date();
-        data.issue_actions.respondent_actions.push(respondentAction);
-        const savedIssue = await issueServie.create({ ...data, issueState: 'Pending' });
+        if (!data.issue_actions.respondent_actions) {
+          data.issue_actions.respondent_actions = [respondentAction];
+        } else {
+          data.issue_actions.respondent_actions.push(respondentAction);
+        }
+        const savedIssue = await issueServie.create({ ...data, issueState: 'Pending' }); 
         if (savedIssue) {
           const issueState = {
             issueId: savedIssue._id,
@@ -110,11 +121,12 @@ class IssueController {
       next(error);
     }
   }
-  async updateIssueStatus(req: Request, res: Response, next: NextFunction) {
+  async updateIssueStatus(req: CustomRequest, res: Response, next: NextFunction) {
     try {
       const issueId = req.params.id;
       const data = req.body;
-      const appSettings: any = await applicationSettingService.getSupport();
+      const userId = req.user.user.id;
+const userDetails = await userService.getProfile(userId)
       const respondentAction = {
         respondent_action: 'RESOLVED',
         short_desc: 'Complaint is resolved.',
@@ -124,11 +136,11 @@ class IssueController {
             name: `${removeProtocolFromURL(process.env.MAIN_SITE_URL || '')}::${logisticsConstants.CONTEXT_DOMAIN}`,
           },
           contact: {
-            phone: appSettings[0].phone,
-            email: appSettings[0].email,
+            phone: userDetails.mobile,
+            email: userDetails.email,
           },
           person: {
-            name: appSettings[0].name,
+            name: userDetails.name,
           },
         },
         cascaded_level: 2,
@@ -147,18 +159,18 @@ class IssueController {
               name: `${removeProtocolFromURL(process.env.MAIN_SITE_URL || '')}::${logisticsConstants.CONTEXT_DOMAIN}`,
             },
             contact: {
-              phone: appSettings[0].phone,
-              email: appSettings[0].email,
+              phone: userDetails.mobile,
+              email: userDetails.email,
             },
             person: {
-              name: appSettings[0].name,
+              name: userDetails.name,
             },
           },
           resolution_support: {
             chat_link: 'http://chat-link/respondent',
             contact: {
-              phone: appSettings[0].phone,
-              email: appSettings[0].email,
+              phone: userDetails.mobile,
+              email: userDetails.email,
             },
             gros: [
               {
@@ -166,8 +178,8 @@ class IssueController {
                   name: 'Sam D',
                 },
                 contact: {
-                  phone: appSettings[0].phone,
-                  email: appSettings[0].email,
+                  phone: userDetails.mobile,
+                  email: userDetails.email,
                 },
                 gro_type: 'TRANSACTION-COUNTERPARTY-NP-GRO',
               },
@@ -208,12 +220,13 @@ class IssueController {
     }
   }
 
-  async updateStatus(req: Request, res: Response, next: NextFunction) {
+  async updateStatus(req: CustomRequest, res: Response, next: NextFunction) {
     try {
       // console.log('object');
       const issueId = req.params.id;
       const issue: any = await issueServie.issueById(issueId);
-      const appSettings: any = await applicationSettingService.getSupport();
+            const userId = req.user.user.id;
+const userDetails = await userService.getProfile(userId)
       const respondentAction = {
         respondent_action: 'PROCESSING',
         short_desc: 'Complaint is being processed',
@@ -223,11 +236,11 @@ class IssueController {
             name: `${removeProtocolFromURL(process.env.MAIN_SITE_URL || '')}::${logisticsConstants.CONTEXT_DOMAIN}`,
           },
           contact: {
-            phone: appSettings[0].phone,
-            email: appSettings[0].email,
+            phone: userDetails.mobile,
+            email: userDetails.email,
           },
           person: {
-            name: appSettings[0].name,
+            name: userDetails.name,
           },
         },
         cascaded_level: 2,

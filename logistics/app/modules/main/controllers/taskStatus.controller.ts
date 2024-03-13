@@ -20,6 +20,7 @@ class TaskStatusController {
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const data = req.body;
+      console.log({taskStatusData: data})
       if (data?.status === 'Customer-not-found') {
         const task: any = await Task.findById(data?.taskId);
         if (!task) {
@@ -33,13 +34,30 @@ class TaskStatusController {
 
         let tags = task?.fulfillments[0]?.tags;
         tags = tags.filter((obj: any) => obj?.code === 'rto_action');
-        const updatedTask = await taskService.updateStatus(data.taskId, data.status);
-        const taskStatusObject = {
-          status: tags[0]?.list[0]?.value === 'no' ? 'RTO-Disposed' : 'RTO-Initiated',
+        let updatedTask: any
+        
+        let taskStatusObject = {
+          status: 'RTO-Initiated',
           description: data?.description,
           taskId: data?.taskId,
           link: data?.link,
+          agentId: data?.agentId
         };
+        if(task.status == 'Agent-assigned') {
+          taskStatusObject = {
+            status: 'Cancelled',
+            description: data?.description,
+            taskId: data?.taskId,
+            link: data?.link,
+            agentId: data?.agentId
+          };
+          updatedTask = await taskService.updateStatus(data.taskId, data.status, true);
+        } else {
+          updatedTask = await taskService.updateStatus(data.taskId, data.status);
+        }
+
+        console.log("taskStatusObject+++=",updatedTask);
+
         await taskStatusService.create(taskStatusObject);
         const headers = {};
         const onCancelPayload = await modifyPayload.cancel(updatedTask);
@@ -48,10 +66,7 @@ class TaskStatusController {
         httpRequest.send();
 
         res.status(200).send({
-          message:
-            taskStatusObject?.status === 'RTO-Initiated'
-              ? 'This order is RTO-Initiated, Please deliver back to origin'
-              : 'This order is RTO-Disposed',
+          message: 'Your Order is RTO Initiated now.',
         });
       } else {
         // const taskStatusCheck = await taskStatusService.taskStatusByTaskIdAndStatus(data.taskId, "In-transit")

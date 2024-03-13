@@ -1,13 +1,13 @@
 import { NextFunction, Request, Response } from 'express';
 import AgentService from '../v1/services/agent.service';
-import uploadToS3 from '../../../lib/utils/uploadToS3';
+// import uploadToS3 from '../../../lib/utils/uploadToS3';
 import TaskService from '../v1/services/task.service';
 import logger from '../../../lib/logger';
 import eventEmitter from '../../../lib/utils/eventEmitter';
 import { getSearchResponse } from '../../../lib/utils/utilityFunctions';
 import SearchDumpService from '../v1/services/searchDump.service';
 import HubsService from '../v1/services/hubs.service';
-import getDistance2 from '../../../lib/utils/distanceCalculation.util';
+// import getDistance2 from '../../../lib/utils/distanceCalculation.util';
 interface RequestExtended extends Request {
   user?: any;
 }
@@ -17,9 +17,9 @@ const agentService = new AgentService();
 const taskService = new TaskService();
 const searchDumpService = new SearchDumpService();
 const hubsService = new HubsService();
-const descriptorName = 'WITS Project Ref Logistic';
-const long_desc = 'WITS Project Ref Logistic';
-const short_desc = 'WITS Project Ref Logistic';
+const descriptorName = 'ONDC Logistics Seller App by WITS';
+const long_desc = 'ONDC Logistics Seller App: Your all-in-one refrence logistics solution to test ONDC API.';
+const short_desc = 'ONDC Logistics Seller App: Your all-in-one refrence logistics solution to test ONDC API.';
 class AgentContoller {
   async searchAgent(req: Request, res: Response, next: NextFunction) {
     try {
@@ -34,9 +34,9 @@ class AgentContoller {
       const fulfillmentType =searchPayload?.fulfillments[0]?.type;
 
       const category = searchPayload?.category;
-      const distance = await getDistance2(startGPS, endGPS);
+      // const distance = await getDistance2(startGPS, endGPS);
+      const distance =4;
       if (distance > 25) {
-        if (category.id === 'Express Delivery') {
           const type = 'P2H2P';
           // check hub for pickup location
           const pickupPincode = searchPayload?.fulfillments[0]?.start?.location?.address?.area_code;
@@ -93,6 +93,7 @@ class AgentContoller {
           await searchDumpService.create({
             delivery: delivery_id,
             rto: RTO_id,
+            order:  searchPayload?.linked_order?.order,
             charge: {
               tax: taxPrice,
               charge: 124,
@@ -117,7 +118,7 @@ class AgentContoller {
               ...responseData,
             },
           });
-        }
+        
       }
       else if (distance < 5) {
         
@@ -148,6 +149,7 @@ class AgentContoller {
         await searchDumpService.create({
           delivery: delivery_id,
           rto: RTO_id,
+          order:  searchPayload?.linked_order?.order,
           charge: {
             tax: taxPrice,
             weightPrice: weightPrice,
@@ -200,13 +202,13 @@ class AgentContoller {
 
   async uploadFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const files = req.files as Express.Multer.File[];
-      let result: any = '';
-      for (const file of files) {
-        result = await uploadToS3(file); // result.Location
-      }
+      // const files = req.files as Express.Multer.File[];
+      let result: any = 'https://s3-us-west-2.amazonaws.com/my-images/example.jpg';
+      // for (const file of files) {
+      //   result = await uploadToS3(file); // result.Location
+      // }
 
-      res.send({ message: 'Successfully uploaded', data: { url: result.Location } });
+      res.send({ message: 'Successfully uploaded', data: { url: result } });
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
       next(error);
@@ -282,7 +284,7 @@ class AgentContoller {
       await agentService.markOnlineOrOffline(status);
 
       res.status(200).send({
-        message: `Driver's status changed to ${status}`,
+        message: `Driver's status changed sucessfully`,
         data: {
           status,
         },

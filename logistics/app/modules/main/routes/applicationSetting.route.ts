@@ -5,5 +5,5 @@ const router = express.Router();
 const applicationSettingController = new ApplicationSettingController();
 
 router.post('/v1/applicationSetting/create', authentication, applicationSettingController.create);
-router.get('/v1/logistics/support', authentication, applicationSettingController.get);
+router.get('/v1/logistics/support', applicationSettingController.get);
 export default router;

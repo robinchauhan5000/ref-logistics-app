@@ -203,7 +203,7 @@ class UserController {
       const userId = req.user.user.id;
       const { adminId, enabled } = req.body;
       await userService.alterAdmin(userId, adminId, enabled);
-      res.status(200).json({ message: 'Admin updated successfully' });
+      res.status(200).json({ message: 'Status changes successfully' });
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
       next(error);

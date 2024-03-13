@@ -1,22 +1,22 @@
 import LogisticsConstants from '../../config/constant/logisticsConstants';
 
-type Weight = {
+export type Weight = {
   unit: 'kilogram' | 'gram';
   value: number;
 };
 
-type Dimension = {
+export type Dimension = {
   unit: 'centimeter' | 'meter';
   value: number;
 };
 
-type Dimensions = {
+export type Dimensions = {
   length: Dimension;
   breadth: Dimension;
   height: Dimension;
 };
 
-const volumetricWeight = (size?: Dimensions) => {
+export const volumetricWeight = (size?: Dimensions) => {
   console.log({ size });
   if (size) {
     const multiplier = (Object.keys(size) as (keyof typeof size)[]).reduce(
@@ -29,7 +29,7 @@ const volumetricWeight = (size?: Dimensions) => {
   return 0;
 };
 
-const deadWeightCalculation = (weight?: Weight) => {
+export const deadWeightCalculation = (weight?: Weight) => {
   console.log({ weight });
   if (weight) {
     const multiplier = weight.unit === 'kilogram' ? 1 : 0.001;

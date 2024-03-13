@@ -3,13 +3,14 @@ const BPP_URI = process.env.BPP_URI
 import { On_search } from './interfaces/onSearchInterface'
 import { On_initV2 } from './interfaces/onInitInterfaceV2'
 import { On_confirm } from './interfaces/onConfirmInterfaceV2'
-import { removeIdKeys, formatedDate, calculateDeliveryCharges } from '../utils/utilityFunctions'
-const descriptorName = 'WITS Project Ref Logistic'
+import { On_update } from './interfaces/onUpdateInterfaceV2'
+import { removeIdKeys, calculateDeliveryCharges } from '../utils/utilityFunctions'
+const descriptorName = 'ONDC Logistics Seller App by WITS'
 import { uuid } from 'uuidv4'
 
 // import { uuid } from 'uuidv4'
-const long_desc = 'WITS Project Ref Logistic'
-const short_desc = 'WITS Project Ref Logistic'
+const long_desc = 'ONDC Logistics Seller App by WITS'
+const short_desc = 'ONDC Logistics Seller App by WITS'
 const states = [
   {
     key: 'Accepted',
@@ -38,8 +39,6 @@ export const getAgentsV2 = async (data: any) => {
   context.bpp_uri = BPP_URI
   context.action = 'on_search'
   delete context.ttl
-  console.log(`on_search context:------------------------------ ${context}`);
-
   // const calculatedResult = calculateDeliveryCharges(lat1, lon1, lat2, lon2, basePrice, perKM)
   const schema: On_search = {
     context,
@@ -123,7 +122,7 @@ export const getAgentsV2 = async (data: any) => {
                 time: {
                   label: 'TAT',
                   duration: 'PT40M',
-                  timestamp: formatedDate(context.timestamp),
+                  timestamp: context.timestamp,
                 },
               },
               {
@@ -144,7 +143,7 @@ export const getAgentsV2 = async (data: any) => {
                 time: {
                   label: 'TAT',
                   duration: 'PT60M',
-                  timestamp: formatedDate(context.timestamp),
+                  timestamp: context.timestamp,
                 },
               },
             ],
@@ -191,9 +190,6 @@ export const getInitV2 = async (data: any) => {
         order: {
           provider: {
             id: data.data.assignee._id,
-          },
-          provider_location: {
-            id: data.data.assignee.addressDetails._id,
           },
           items: data?.message?.items,
           quote: {
@@ -327,6 +323,88 @@ export const getStatusV2 = async (data: any) => {
         fulfillments: updatedFulfillment,
         payment,
         billing: billing,
+      },
+    },
+  }
+
+  return removeIdKeys(schema)
+}
+
+export const getUpdateV2 = async (data: any) => {
+  data.context.timestamp = new Date().toISOString()
+  const context = data.context
+
+  context.bpp_id = BPP_ID
+  context.bpp_uri = BPP_URI
+  context.action = 'on_update'
+  delete context.ttl
+
+  const { status, order_id, items, fulfillments } = data.data.updatedTask
+  const taskState = states?.find((obj: any) => {
+    return obj?.possibleStates?.includes(status)
+  })
+  delete fulfillments[0]['@ondc/org/awb_no']
+  delete fulfillments[0]?.end
+  delete fulfillments[0]?.state
+  delete fulfillments[0]?.vehicle
+  delete fulfillments[0]?.tracking
+
+  const updatedFulfillment = fulfillments?.map((item: any) => {
+    if (item.type === 'CoD' || 'Prepaid') {
+      delete item.tags
+      return item
+    } else {
+      return item
+    }
+  })
+  const schema: On_update = {
+    context,
+    message: {
+      order: {
+        id: order_id,
+        state: taskState?.key,
+        items,
+        fulfillments: updatedFulfillment,
+        updated_at: data.context.timestamp,
+      },
+    },
+  }
+  return removeIdKeys(schema)
+}
+
+export const getCancelV2 = async (data: any) => {
+  data.context.timestamp = new Date().toISOString()
+  const context = data.context
+  context.bpp_id = BPP_ID
+  context.bpp_uri = BPP_URI
+  context.action = 'on_cancel'
+  delete context.ttl
+
+  const { order_id, status, fulfillments } = data?.data?.data
+  const taskState = states?.find((obj: any) => {
+    return obj?.possibleStates?.includes(status)
+  })
+  const schema = {
+    context,
+    message: {
+      order: {
+        id: order_id,
+        state: 'Cancelled',
+        fulfillments: [
+          {
+            id: fulfillments[0].id,
+            type: fulfillments[0].type,
+            state: {
+              descriptor: {
+                code: taskState?.key,
+              },
+            },
+            tags: {
+              cancellation_reason_id: data.cancellationReasonId,
+              'AWB no': '1227262193237777',
+            },
+          },
+        ],
       },
     },
   }

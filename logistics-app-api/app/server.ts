@@ -60,7 +60,7 @@ app.use(function (err: any, _req: Request, res: Response, _next: NextFunction) {
   res.status(500).json({ error: 'Something went wrong. Please try again' })
 })
 
-const PORT = process.env.PORT || '3002'
+const PORT = process.env.PORT || 3002
 
 app.listen(PORT, () => {
   console.log(`server started on port : ${PORT}`)

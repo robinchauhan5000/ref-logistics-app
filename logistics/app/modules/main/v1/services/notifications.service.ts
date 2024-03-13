@@ -28,7 +28,7 @@ class NotificationService {
         return [];
       }
 
-      const query = userInfo?.role?.name === 'Super Admin' ? {} : { typeId: task?._id };
+      const query = userInfo?.role?.name !== 'Agent' ? {} : { typeId: task?._id };
       const NotificationList = await Notification.find(query).sort({ createdAt: -1 });
       if (NotificationList) {
         return NotificationList;

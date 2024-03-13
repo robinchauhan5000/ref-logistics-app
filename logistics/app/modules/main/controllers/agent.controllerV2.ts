@@ -29,7 +29,7 @@ class AgentContoller {
       await searchDumpService.create({ delivery: delivery_id, rto: RTO_id, charge: { charge: total_charge }});
 
       //calculate distcance and price
-      res.send({ data: agents, delivery_id, RTO_id, total_charge });
+      res.send({ data: agents, delivery_id, RTO_id });
     } catch (error: any) {
       logger.error(`${req.method} ${req.originalUrl} error: ${error.message}`);
       next(error);
