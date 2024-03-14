@@ -535,7 +535,7 @@ class TaskService {
         const newRTOItem = {
           id: 'rto',
           fulfillment_id: get_RTO_ID?.rto,
-          category_id: task.items[0].time.duration,
+          category_id: task.items[0].category_id,
           descriptor: {
             code: 'P2P',
           },
