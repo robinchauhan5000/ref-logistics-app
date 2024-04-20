@@ -1,7 +1,8 @@
 export const generateStartTime = async (category_id: string) => {
   const currentTime = Date.now();
+  const startTime = new Date(currentTime);
   if (category_id === 'Immediate Delivery') {
-    return { start: new Date(currentTime).toISOString(), end: new Date(currentTime + 15 * 60 * 1000).toISOString() };
+    return { start: new Date(startTime.getMinutes()+10).toISOString(), end: new Date(currentTime + 15 * 60 * 1000).toISOString() };
   }
   
   if (category_id === 'Same Day Delivery') {

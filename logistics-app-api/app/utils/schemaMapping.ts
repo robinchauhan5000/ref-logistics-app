@@ -394,6 +394,25 @@ export const getCancel = async (data: any) => {
     data?.data?.data
 
   if (fulfillments?.length > 1) {
+
+  fulfillments.forEach((eachFulfillment:any)=>{
+      if (eachFulfillment.state.descriptor.code === "Cancelled") {
+        eachFulfillment.tags.push({
+          code: 'precancel_state',
+          list: [
+            {
+              code: 'fulfillment_state',
+              value: status,
+            },
+            {
+              code: 'updated_at',
+              value: new Date(data?.data?.data.updatedAt).toISOString(),
+            },
+          ],
+        });
+      }
+    }
+  )
     const schema = {
       context,
       message: {
@@ -517,7 +536,7 @@ export const getIssueStatus = async (data: any) => {
           resolution_provider: data.data.issue.resolution_provider,
           resolution: data.data.issue.resolution,
           created_at: data.data.issue.created_at,
-          updated_at: data.data.issue.updated_at,
+          updated_at: new Date(data.data.issue.updated_at).toISOString(),
         },
       },
     }
@@ -532,7 +551,7 @@ export const getIssueStatus = async (data: any) => {
             respondent_actions: data.data.issue.issue_actions.respondent_actions,
           },
           created_at: data.data.issue.created_at,
-          updated_at: data.data.issue.updated_at,
+          updated_at: new Date(data.data.issue.updated_at).toISOString(),
         },
       },
     }
@@ -565,7 +584,7 @@ export const getTrackOrder = async (data: any) => {
       tracking: {
         id: data?.data?.data?.fulfillments[0]?.id,
         url: data?.data?.data?.trackingUrl,
-        location: {
+        location: data?.data?.data?.trackStatus==="inactive"? {} : {
           gps: `${(data?.data?.data?.assignee?.currentLocation?.coordinates[0]).toFixed(
             6,
           )},${(data?.data?.data?.assignee?.currentLocation?.coordinates[1]).toFixed(6)}`,

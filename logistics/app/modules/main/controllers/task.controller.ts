@@ -607,7 +607,7 @@ class TaskController {
           });
         }
       }
-      )
+    )
       
       await Task.findOneAndUpdate({ transaction_id }, updatedTask, { new: true });
 

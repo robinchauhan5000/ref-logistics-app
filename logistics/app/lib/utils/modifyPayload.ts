@@ -158,6 +158,7 @@ class ModifyPayload {
                 end: fulfillments[0].end,
                 agent: fulfillments[0].agent,
                 vehicle: fulfillments[0].vehicle,
+                tags:fulfillments[0].tags
               },
               fulfillments[1],
             ],

@@ -23,7 +23,7 @@ interface IMessage {
   tracking: {
     id: string
     url?: string
-    location: ILocation
+    location: ILocation | {}
     status: string
     tags?: any[]
   }

@@ -515,7 +515,7 @@ class TaskService {
         const rtoTax = ((parseFloat(rtoPrice) * 10) / 100).toFixed(2);
 
         const RTOPriceQuote = {
-          '@ondc/org/item_id': 'rto',
+          '@ondc/org/item_id': get_RTO_ID?.rto,
 
           '@ondc/org/title_type': 'rto',
           price: {
@@ -524,7 +524,7 @@ class TaskService {
           },
         };
         const RTOTaxQuote = {
-          '@ondc/org/item_id': 'rto',
+          '@ondc/org/item_id': get_RTO_ID?.rto,
           '@ondc/org/title_type': 'tax',
           price: {
             currency: 'INR',
@@ -580,6 +580,19 @@ class TaskService {
               { code: 'cancelled_by', value: BPP_ID },
             ],
           },
+          {
+            code: 'precancel_state',
+            list: [
+              {
+                code: 'fulfillment_state',
+                value: task.status,
+              },
+              {
+                code: 'updated_at',
+                value: new Date(task.updatedAt).toISOString(),
+              },
+            ],
+          }
         ];
 
         await Task.findOneAndUpdate(
@@ -996,7 +1009,7 @@ class TaskService {
           ).lean();
           return updatedTask;
         }
-        console.log(task);
+        console.log("task=================>  ", task);
         // if (task.status === 'Agent-assigned') {
         //   const updatedTask = await Task.findOneAndUpdate(
         //     { _id: task._id },
@@ -1040,35 +1053,17 @@ class TaskService {
           cancellationAmount = 0;
         }
 
-        const tags = task?.fulfillments[0]?.tags.filter((obj: any) => obj?.code === 'rto_action');
+        // const tags = task?.fulfillments[0]?.tags.filter((obj: any) => obj?.code === 'rto_action');
         // const cancellationReasonId = '013';
         // RTO-Disposed
-        if (tags[0]?.list[0]?.value === 'no') {
-          if (task?.assignee) {
-            await Agent.findByIdAndUpdate(task?.assignee, { $set: { isAvailable: 'true' } });
-          }
-          const updatedTask = await Task.findOneAndUpdate(
-            { _id: task._id },
-            {
-              $set: {
-                status: 'RTO-Initiated',
-                orderCancelledBy: task?.bap_id,
-                'fulfillments.0.state.descriptor.code': 'RTO-Initiated',
-                cancellationReasonId: cancellationReasonId,
-                trackStatus: 'inactive',
-                cancellationAmount,
-              },
-              // $unset: { assignee: '' },
-            },
-            { new: true },
-          ).lean();
-          return updatedTask;
-        } else {
+        if (chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code)) {
+
+          console.log("chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code)", chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code))
           const deliveryID = task.fulfillments.find((item: any) => item.type === 'Delivery').id;
-          console.log("deliveryID>>>>>>",deliveryID)
+          console.log("deliveryID>>>>>>", deliveryID)
 
           const get_RTO_ID: any = await searchDumpService.getSearchDump(deliveryID);
-         console.log("get_RTO_ID>>>>>>",JSON.stringify(get_RTO_ID))
+          console.log("get_RTO_ID>>>>>>", JSON.stringify(get_RTO_ID))
 
           const deliveryPrice = task.quote.price.value;
 
@@ -1079,7 +1074,7 @@ class TaskService {
           const RTOPriceQuote = {
             '@ondc/org/item_id': 'rto',
 
-            '@ondc/org/title_type': 'rto',
+            '@ondc/org/title_type': 'delivery',
             price: {
               currency: 'INR',
               value: (parseFloat(rtoPrice) - parseFloat(rtoTax)).toFixed(2),
@@ -1093,6 +1088,19 @@ class TaskService {
               currency: 'INR',
               value: rtoTax,
             },
+            "item": {
+              "tags": [
+                {
+                  "code": "quote",
+                  "list": [
+                    {
+                      "code": "type",
+                      "value": "fulfillment"
+                    }
+                  ]
+                }
+              ]
+            }
           };
 
           const newRTOItem = {
@@ -1151,6 +1159,8 @@ class TaskService {
                 items: newRTOItem,
                 fulfillments: newRTOFulfillment,
                 'quote.breakup': [RTOPriceQuote, RTOTaxQuote],
+                'quote.breakup.0.price.value': '0',
+                'quote.breakup.1.price.value': '0'
               },
             },
             { new: true },
@@ -1165,15 +1175,72 @@ class TaskService {
                 cancellationAmount,
                 cancellationReasonId: cancellationReasonId,
                 'fulfillments.0.state.descriptor.code': 'Cancelled',
-
+                'quote.breakup.0.price.value': '0',
+                'quote.breakup.1.price.value': '0',
                 'quote.price.value': `${totalPrice}`,
                 'fulfillments.0.tags': rtoTags,
               },
             },
             { new: true },
           ).lean();
+
+
+
+
+          console.log("updatedTask in if condition", JSON.stringify(updatedTask))
+
+
           return updatedTask;
         }
+
+
+        if (task?.assignee) {
+          await Agent.findByIdAndUpdate(task?.assignee, { $set: { isAvailable: 'true' } });
+        }
+
+        // var task = 1711979035574;
+        // var date = new Date(task);
+        // var isoString = date.toISOString();
+
+        const updatedTask = await Task.findOneAndUpdate(
+          { _id: task._id },
+          {
+            $set: {
+              status: 'RTO-Initiated',
+              orderCancelledBy: task?.bap_id,
+              'fulfillments.0.state.descriptor.code': 'RTO-Initiated',
+              'fulfillments.0.tags': [...task.fulfillments[0].tags,
+              {
+                code: 'precancel_state',
+                list: [
+                  {
+                    code: 'fulfillment_state',
+                    value: task.status,
+                  },
+                  {
+                    code: 'updated_at',
+                    value: new Date(task.updatedAt).toISOString(),
+                  },
+                ],
+              }],
+              cancellationReasonId: cancellationReasonId,
+              trackStatus: 'inactive',
+              cancellationAmount,
+              'quote.price.value': '0',
+              'quote.breakup.0.price.value': '0',
+              'quote.breakup.1.price.value': '0'
+
+            },
+            // $unset: { assignee: '' },
+          },
+          { new: true },
+        ).lean();
+
+        console.log("updatedTask updatedTask", JSON.stringify(updatedTask))
+        return updatedTask;
+
+
+
       }
       // task.orderCancelledBy = task.orderCancelledBy ? task.orderCancelledBy : task.bap_id;
       // task.status = 'Cancelled';

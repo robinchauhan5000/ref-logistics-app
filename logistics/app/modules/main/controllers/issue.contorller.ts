@@ -46,7 +46,7 @@ class IssueController {
           },
           cascaded_level: 2,
         };
-        data.updated_at = new Date();
+        data.updated_at = new Date().toISOString();
         if (!data.issue_actions.respondent_actions) {
           data.issue_actions.respondent_actions = [respondentAction];
         } else {
@@ -130,7 +130,7 @@ const userDetails = await userService.getProfile(userId)
       const respondentAction = {
         respondent_action: 'RESOLVED',
         short_desc: 'Complaint is resolved.',
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
         updated_by: {
           org: {
             name: `${removeProtocolFromURL(process.env.MAIN_SITE_URL || '')}::${logisticsConstants.CONTEXT_DOMAIN}`,
@@ -230,7 +230,7 @@ const userDetails = await userService.getProfile(userId)
       const respondentAction = {
         respondent_action: 'PROCESSING',
         short_desc: 'Complaint is being processed',
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
         updated_by: {
           org: {
             name: `${removeProtocolFromURL(process.env.MAIN_SITE_URL || '')}::${logisticsConstants.CONTEXT_DOMAIN}`,
