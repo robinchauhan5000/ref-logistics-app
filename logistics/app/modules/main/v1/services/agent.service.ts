@@ -91,7 +91,7 @@ class AgentService {
           $near: {
             $geometry: { type: 'Point', coordinates: [startLat||0, startLong||0] },
             $minDistance: 0,
-            $maxDistance: 50000000000,
+            $maxDistance: 50000000000000000000000,
           },
         },
       };
