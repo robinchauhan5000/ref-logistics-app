@@ -9,6 +9,7 @@ import mergedEnvironmentConfig from './config/env.config';
 import routes from './init/router.init';
 import cors from 'cors';
 import './init/database.init';
+import './init/pgdatabase.init';
 import Bootstrap from './lib/bootstrap';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';

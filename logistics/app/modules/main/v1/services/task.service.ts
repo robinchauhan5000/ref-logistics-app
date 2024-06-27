@@ -6,13 +6,17 @@ import TaskStatusService from './taskStatus.service';
 import Agent from '../../models/agent.model';
 import SearchDumpService from './searchDump.service';
 import { formatedDate, durationToTimestamp } from '../../../../lib/utils/utilityFunctions';
-import { generateEndTime, generateStartTime } from '../../../../lib/utils/modifyRange.util';
-import { durationToSeconds } from '../../../../lib/utils/durationToSeconds.util';
+import { generateEndTime, generateStartTime, startRangeAndEndRange } from '../../../../lib/utils/modifyRange.util';
+import ModifyPayload from '../../../../lib/utils/modifyPayload';
+import HttpRequest from '../../../../lib/utils/HttpRequest';
+// import { durationToSeconds } from '../../../../lib/utils/durationToSeconds.util';
 // import getDistance2 from '../../../../lib/utils/distanceCalculation.util';
 
 const taskStatusService = new TaskStatusService();
 const searchDumpService = new SearchDumpService();
+const modifyPayload = new ModifyPayload();
 
+const clientURL = process.env.PROTOCOL_BASE_URL || '';
 const BPP_ID = process.env.BPP_ID;
 class TaskService {
   async create(data: any) {
@@ -39,7 +43,7 @@ class TaskService {
               $near: {
                 $geometry: { type: 'Point', coordinates: [startLat, startLong] },
                 $minDistance: 0,
-                $maxDistance: 5000,
+                $maxDistance: 50000000000000,
               },
             },
           },
@@ -271,14 +275,89 @@ class TaskService {
     }
   }
 
+  async updateSolicitateStatus(taskId: any, status: string) {
+    try {
+      const inTransitIsExist = await taskStatusService.getTastStatus({
+        taskId: String(taskId),
+        status,
+      });
+
+      if (!inTransitIsExist) {
+        const orderPickupStatus = await taskStatusService.getTastStatus({
+          taskId: String(taskId),
+          status: 'Order-picked-up',
+        });
+
+        await taskStatusService.create({
+          taskId: taskId,
+          status,
+          agentId: orderPickupStatus?.agentId,
+        });
+
+        const updatedTask = await Task.findOneAndUpdate(
+          { _id: taskId },
+          { $set: { 'fulfillments.0.state.descriptor.code': status, status } },
+          { new: true },
+        ).lean();
+
+        const onStatusPayload = await modifyPayload.status(updatedTask);
+
+        const httpRequest = new HttpRequest(
+          `${clientURL}/protocol/v1/status`, //TODO: allow $like query
+          'POST',
+          onStatusPayload,
+          {},
+        );
+        httpRequest.send();
+      }
+    } catch (error) {
+      console.log('Error in scheuled job while updating status (Order-picked-up): ', error);
+
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async updateAtDestinationStatus(taskId: any) {
+    try {
+      const inTransitIsExist = await taskStatusService.getTastStatus({
+        taskId: String(taskId),
+        status: 'In-transit',
+      });
+
+      if (!inTransitIsExist) {
+        const orderPickupStatus = await taskStatusService.getTastStatus({
+          taskId: String(taskId),
+          status: 'Order-picked-up',
+        });
+
+        await taskStatusService.create({
+          taskId: taskId,
+          status: 'In-transit',
+          agentId: orderPickupStatus?.agentId,
+        });
+
+        await taskStatusService.create({
+          taskId: taskId,
+          status: 'At-destination-hub',
+          agentId: orderPickupStatus?.agentId,
+        });
+      }
+    } catch (error) {
+      console.log('Error in scheuled job while updating status (Order-picked-up): ', error);
+
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   async updateStatus(taskId: string, status: string, driverCancel: boolean = false): Promise<any> {
     console.log('taskId++++', taskId);
     console.log('status++++', status);
 
     try {
-      let updatedTask;
+      let updatedTask: any;
       const task: any = await Task.findById(taskId).lean();
       console.log('task++++', JSON.stringify(task));
+      const currentTimeIsoString = new Date().toISOString();
 
       if (!task) {
         throw new NoRecordFoundError(MESSAGES.TASK_NOT_EXIST);
@@ -306,7 +385,7 @@ class TaskService {
       } else if (status === 'Order-picked-up') {
         if (task?.items[0]?.descriptor?.code === 'P2P') {
           const updateFulfillments: any = {
-            'fulfillments.0.start.time.timestamp': new Date().toISOString(),
+            'fulfillments.0.start.time.timestamp': currentTimeIsoString,
             'fulfillments.0.state.descriptor.code': status,
             'fulfillments.0.tracking': true,
           };
@@ -331,13 +410,26 @@ class TaskService {
             { $set: { ...updateFulfillments, status: status, orderPickedUpTime: Date.now() } },
             { new: true },
           ).lean();
+
+          // Scheduler.scheduleJob(startProcessingAtGivenTime(new Date().toISOString(), 10), () => {
+          //   this.updateSolicitateStatus(updatedTask._id, 'In-transit');
+          // });
+
+          // Scheduler.scheduleJob(startProcessingAtGivenTime(new Date().toISOString(), 20), () => {
+          //   this.updateSolicitateStatus(updatedTask._id, 'At-destination-hub');
+          // });
+
           return updatedTask;
         } else {
           return task;
         }
       } else if (status === 'Out-for-delivery') {
-        const checkOutForDelivery = await taskStatusService.taskStatusByTaskIdAndStatus(taskId, 'Out-for-delivery');
-        if (task?.items[0]?.descriptor?.code === 'P2H2P' && !checkOutForDelivery) {
+        const checkOutForDelivery = await taskStatusService.taskStatusByTaskIdAndStatus(taskId, 'Order-picked-up');
+        const checkOutForAtDestinationHub = await taskStatusService.taskStatusByTaskIdAndStatus(
+          taskId,
+          'At-destination-hub',
+        );
+        if (task?.items[0]?.descriptor?.code === 'P2H2P' && !checkOutForDelivery && !checkOutForAtDestinationHub) {
           return task;
         } else {
           const updateFulfillments = {
@@ -365,10 +457,7 @@ class TaskService {
       } else if (status === 'Order-delivered') {
         const orderDeliveredAt = new Date().toISOString();
         if (task?.items[0]?.descriptor?.code === 'P2H2P') {
-          const checkAtDestinationHub = await taskStatusService.taskStatusByTaskIdAndStatus(
-            taskId,
-            'At-destination-hub',
-          );
+          const checkAtDestinationHub = await taskStatusService.taskStatusByTaskIdAndStatus(taskId, 'Out-for-delivery');
           if (checkAtDestinationHub) {
             const updatePayment = {
               ...task.payment,
@@ -549,6 +638,7 @@ class TaskService {
         const endRange = await generateEndTime('Immediate Delivery');
         const newRTOFulfillment = {
           id: get_RTO_ID?.rto,
+          tracking: true,
           type: 'RTO',
           state: {
             descriptor: {
@@ -560,11 +650,13 @@ class TaskService {
               range: startRange,
               timestamp: new Date().toISOString(),
             },
+            location: task?.fulfillments[0]?.end?.location,
           },
           end: {
             time: {
               range: endRange,
             },
+            location: task?.fulfillments[0]?.start?.location,
           },
         };
 
@@ -592,7 +684,7 @@ class TaskService {
                 value: new Date(task.updatedAt).toISOString(),
               },
             ],
-          }
+          },
         ];
 
         await Task.findOneAndUpdate(
@@ -672,9 +764,27 @@ class TaskService {
   async updateTask(updatedData: any): Promise<any> {
     let updatedTask: any;
     try {
+      const duration =  (updatedData.items[0]?.descriptor?.code === 'P2H2P')
+      ? 'P1D'
+      : updatedData.items[0]?.category_id === 'Immediate Delivery'
+      ? 'PT15M'
+      : updatedData.items[0]?.category_id === 'Same Day Delivery'
+      ? 'PT2H'
+      : 'P1D';
+
+      let currentDateTime = new Date().toISOString()
+
+      const tat =  updatedData.items[0].time.duration
+      const fulfillmentDuration= duration ?? tat;
+
+      const bothRanges = startRangeAndEndRange({currentTimeIsoString:currentDateTime, duration:fulfillmentDuration, tat })
+      const startRange = bothRanges.startRang
+      const endRange = bothRanges.endRange
+
+
       const startLoc = updatedData.fulfillments[0].start.location.gps.split(',');
-      const startRange = await generateStartTime(updatedData.items[0].category_id);
-      const endRange = await generateEndTime(updatedData.items[0].category_id);
+      // const startRange = await generateStartTime(updatedData.items[0].category_id);
+      // const endRange = await generateEndTime(updatedData.items[0].category_id);
       const readyToShipState: string = updatedData.fulfillments
         .find((fulfillment: any) => fulfillment.type === 'Delivery' || fulfillment.type === 'Return')
         .tags.find((tag: any) => tag.code === 'state').list[0].value;
@@ -709,6 +819,8 @@ class TaskService {
       //   return updatedTask;
       // }
 
+      console.log('---------- test items ----------------', JSON.stringify({ updatedData }));
+
       if (distance > 5) {
         updatedTask = {
           data: {
@@ -734,10 +846,25 @@ class TaskService {
               range: endRange,
             };
             fulfillment.state = { descriptor: { code: 'Agent-assigned' } };
-            fulfillment.tracking = true;
+            // fulfillment.tracking = true;
+            // fulfillment.tags = [
+            //   {
+            //     code: 'tracking',
+            //     list: [
+            //       {
+            //         code: 'gps_enabled',
+            //         value: updatedData?.items[0]?.descriptor?.code === 'P2P' ? 'yes' : 'no',
+            //       },
+            //       {
+            //         code: 'url_enabled',
+            //         value: updatedData?.items[0]?.descriptor?.code ==='P2H2P' ? 'yes' : 'no',
+            //       },
+            //     ],
+            //   },
+            // ];
             fulfillment.agent = {
               name: agentDetails.userId.name,
-              mobile: agentDetails.userId.mobile,
+              phone: agentDetails.userId.mobile,
             };
             fulfillment.vehicle = { registration: agentDetails?.vehicleDetails?.vehicleNumber };
             return fulfillment;
@@ -747,13 +874,35 @@ class TaskService {
         });
         updatedData.fulfillments = updatedFulfillments;
       } else {
+        // const shouldHaveTags =  (updatedData.fulfillments[0].type === 'Delivery' || updatedData.fulfillments[0].type === 'Return') ? true : false;
+        // if( shouldHaveTags ) {
+        //   console.log("============= inside shouldHaveTags -------------- ");
+        //   updatedData.fulfillments[0].tags =  [
+        //     {
+        //       code: 'tracking',
+        //       list: [
+        //         {
+        //           code: 'gps_enabled',
+        //           value: updatedData?.items[0]?.descriptor?.code === 'P2P' ? 'yes' : 'no',
+        //         },
+        //         {
+        //           code: 'url_enabled',
+        //           value: updatedData?.items[0]?.descriptor?.code ==='P2H2P' ? 'yes' : 'no',
+        //         },
+        //       ],
+        //     },
+        //   ];
+        // }
+
         updatedData.fulfillments[0].state = { descriptor: { code: 'Pending' } };
-        updatedData.fulfillments[0].tracking = false;
+        // updatedData.fulfillments[0].tracking = false;
         updatedData.status = 'Searching-for-Agent';
       }
 
+      updatedData.fulfillments[0].tracking = true;
       updatedData.payment.status = updatedData.payment.type === 'ON-FULFILLMENT' ? 'PAID' : 'NOT-PAID';
       updatedData.payment.collected_by = updatedData.payment.type === 'ON-FULFILLMENT' ? 'BPP' : 'BAP';
+      updatedData.confirmCreatedAt = updatedData?.created_at;
 
       updatedTask = await Task.findOneAndUpdate(
         { transaction_id: updatedData.transaction_id },
@@ -1009,7 +1158,7 @@ class TaskService {
           ).lean();
           return updatedTask;
         }
-        console.log("task=================>  ", task);
+        console.log('task=================>  ', task);
         // if (task.status === 'Agent-assigned') {
         //   const updatedTask = await Task.findOneAndUpdate(
         //     { _id: task._id },
@@ -1026,22 +1175,22 @@ class TaskService {
         //   ).lean();
         //   return updatedTask;
         // }
-        const secondsDuration = durationToSeconds(task.items[0].time.duration);
-        const lastUpdate = task.updatedAt;
+        // const secondsDuration = durationToSeconds(task.items[0].time.duration);
+        // const lastUpdate = task.updatedAt;
 
-        const timeDifference = Date.now() - lastUpdate;
+        // const timeDifference = Date.now() - lastUpdate;
 
-        if (timeDifference < secondsDuration && cancellationReasonId == '007') {
-          return {
-            data: {
-              error: {
-                type: 'DOMAIN-ERROR',
-                code: '60010',
-                message: 'Cancellation request is rejected as fulfillment TAT is not breached',
-              },
-            },
-          };
-        }
+        // if (timeDifference < secondsDuration && cancellationReasonId == '007') {
+        //   return {
+        //     data: {
+        //       error: {
+        //         type: 'DOMAIN-ERROR',
+        //         code: '60010',
+        //         message: 'Cancellation request is rejected as fulfillment TAT is not breached',
+        //       },
+        //     },
+        //   };
+        // }
         // rto and cancel
 
         let cancellationAmount = 0;
@@ -1057,13 +1206,15 @@ class TaskService {
         // const cancellationReasonId = '013';
         // RTO-Disposed
         if (chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code)) {
-
-          console.log("chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code)", chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code))
+          console.log(
+            'chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code)',
+            chargeableStatus.includes(task?.fulfillments[0]?.state.descriptor.code),
+          );
           const deliveryID = task.fulfillments.find((item: any) => item.type === 'Delivery').id;
-          console.log("deliveryID>>>>>>", deliveryID)
+          console.log('deliveryID>>>>>>', deliveryID);
 
           const get_RTO_ID: any = await searchDumpService.getSearchDump(deliveryID);
-          console.log("get_RTO_ID>>>>>>", JSON.stringify(get_RTO_ID))
+          console.log('get_RTO_ID>>>>>>', JSON.stringify(get_RTO_ID));
 
           const deliveryPrice = task.quote.price.value;
 
@@ -1088,19 +1239,19 @@ class TaskService {
               currency: 'INR',
               value: rtoTax,
             },
-            "item": {
-              "tags": [
+            item: {
+              tags: [
                 {
-                  "code": "quote",
-                  "list": [
+                  code: 'quote',
+                  list: [
                     {
-                      "code": "type",
-                      "value": "fulfillment"
-                    }
-                  ]
-                }
-              ]
-            }
+                      code: 'type',
+                      value: 'fulfillment',
+                    },
+                  ],
+                },
+              ],
+            },
           };
 
           const newRTOItem = {
@@ -1131,11 +1282,13 @@ class TaskService {
                 range: startRange,
                 timestamp: new Date().toISOString(),
               },
+              location: task?.fulfillments[0]?.end?.location,
             },
             end: {
               time: {
                 range: endRange,
               },
+              location: task?.fulfillments[0]?.start?.location,
             },
           };
 
@@ -1160,7 +1313,7 @@ class TaskService {
                 fulfillments: newRTOFulfillment,
                 'quote.breakup': [RTOPriceQuote, RTOTaxQuote],
                 'quote.breakup.0.price.value': '0',
-                'quote.breakup.1.price.value': '0'
+                'quote.breakup.1.price.value': '0',
               },
             },
             { new: true },
@@ -1184,15 +1337,10 @@ class TaskService {
             { new: true },
           ).lean();
 
-
-
-
-          console.log("updatedTask in if condition", JSON.stringify(updatedTask))
-
+          console.log('updatedTask in if condition', JSON.stringify(updatedTask));
 
           return updatedTask;
         }
-
 
         if (task?.assignee) {
           await Agent.findByIdAndUpdate(task?.assignee, { $set: { isAvailable: 'true' } });
@@ -1209,38 +1357,36 @@ class TaskService {
               status: 'RTO-Initiated',
               orderCancelledBy: task?.bap_id,
               'fulfillments.0.state.descriptor.code': 'RTO-Initiated',
-              'fulfillments.0.tags': [...task.fulfillments[0].tags,
-              {
-                code: 'precancel_state',
-                list: [
-                  {
-                    code: 'fulfillment_state',
-                    value: task.status,
-                  },
-                  {
-                    code: 'updated_at',
-                    value: new Date(task.updatedAt).toISOString(),
-                  },
-                ],
-              }],
+              'fulfillments.0.tags': [
+                ...(cancellationReasonId === '007' ? [] : task.fulfillments[0].tags),
+                {
+                  code: 'precancel_state',
+                  list: [
+                    {
+                      code: 'fulfillment_state',
+                      value: task.status,
+                    },
+                    {
+                      code: 'updated_at',
+                      value: new Date(task.updatedAt).toISOString(),
+                    },
+                  ],
+                },
+              ],
               cancellationReasonId: cancellationReasonId,
               trackStatus: 'inactive',
               cancellationAmount,
               'quote.price.value': '0',
               'quote.breakup.0.price.value': '0',
-              'quote.breakup.1.price.value': '0'
-
+              'quote.breakup.1.price.value': '0',
             },
             // $unset: { assignee: '' },
           },
           { new: true },
         ).lean();
 
-        console.log("updatedTask updatedTask", JSON.stringify(updatedTask))
+        console.log('updatedTask updatedTask', JSON.stringify(updatedTask));
         return updatedTask;
-
-
-
       }
       // task.orderCancelledBy = task.orderCancelledBy ? task.orderCancelledBy : task.bap_id;
       // task.status = 'Cancelled';
@@ -1381,13 +1527,13 @@ class TaskService {
             };
 
             fulfillment.state = { descriptor: { code: 'Agent-assigned' } };
-            fulfillment.tracking = false;
+            fulfillment.tracking = true;
             fulfillment.start.instructions = order?.fulfillments.find(
               (fulfilment: any) => fulfilment.type === 'Delivery' || fulfilment.type === 'Return',
             )?.start.instructions;
             fulfillment.agent = {
               name: agentDetails.userId.name,
-              mobile: agentDetails.userId.mobile,
+              phone: agentDetails.userId.mobile,
             };
             fulfillment.vehicle = { registration: agentDetails?.vehicleDetails?.vehicleNumber };
             fulfillment.tags = fulfillment.tags.map((tag: any) => {
@@ -1408,7 +1554,12 @@ class TaskService {
             console.log(existingTask?.items[0]?.descriptor?.code === 'P2H2P');
             if (existingTask?.items[0]?.descriptor?.code === 'P2H2P') {
               fulfillment.start.instructions = {
-                images: 'https://ref-logistics-app-staging-bucket.s3.ap-south-1.amazonaws.com/1696662276710.jpeg',
+                short_desc: 'Shipping label or proof of delivery details',
+                long_desc: 'Shipping label info or proof of pickup',
+                images: [
+                  'https://ref-logistics-app-staging-bucket.s3.ap-south-1.amazonaws.com/1696662276710.jpeg',
+                  'https://ref-logistics-app-staging-bucket.s3.ap-south-1.amazonaws.com/2446662276711.jpeg',
+                ],
               };
             }
             return fulfillment;
@@ -1534,7 +1685,7 @@ class TaskService {
             };
 
             fulfillment.state = { descriptor: { code: 'Agent-assigned' } };
-            fulfillment.tracking = false;
+            fulfillment.tracking = true;
             fulfillment.start.instructions = order?.fulfillments.find(
               (fulfilment: any) => fulfilment.type === 'CoD',
             )?.start.instructions;

@@ -20,72 +20,72 @@ const taskStatusService = new TaskStatusService();
 const notificationService = new NotificationService();
 const searchDumpService = new SearchDumpService();
 
-const cancellation_terms = [
-  {
-    fulfillment_state: {
-      descriptor: {
-        code: 'Pending',
-        short_desc: '',
-      },
-    },
-    refund_eligible: true,
-    reason_required: false,
-    cancellation_fee: {
-      amount: {
-        currency: 'INR',
-        value: '0.0',
-      },
-    },
-  },
-  {
-    fulfillment_state: {
-      descriptor: {
-        code: 'Agent-assigned',
-        short_desc: '001,003',
-      },
-    },
-    refund_eligible: true,
-    reason_required: true,
-    cancellation_fee: {
-      amount: {
-        currency: 'INR',
-        value: '50',
-      },
-    },
-  },
-  {
-    fulfillment_state: {
-      descriptor: {
-        code: 'Order-picked-up',
-        short_desc: '001,003',
-      },
-    },
-    refund_eligible: true,
-    reason_required: true,
-    cancellation_fee: {
-      amount: {
-        currency: 'INR',
-        value: '100',
-      },
-    },
-  },
-  {
-    fulfillment_state: {
-      descriptor: {
-        code: 'Out-for-delivery',
-        short_desc: '011,012,013,014,015',
-      },
-    },
-    refund_eligible: true,
-    reason_required: true,
-    cancellation_fee: {
-      amount: {
-        currency: 'INR',
-        value: '100.0',
-      },
-    },
-  },
-];
+// const cancellation_terms = [
+//   {
+//     fulfillment_state: {
+//       descriptor: {
+//         code: 'Pending',
+//         short_desc: '',
+//       },
+//     },
+//     refund_eligible: true,
+//     reason_required: false,
+//     cancellation_fee: {
+//       amount: {
+//         currency: 'INR',
+//         value: '0.0',
+//       },
+//     },
+//   },
+//   {
+//     fulfillment_state: {
+//       descriptor: {
+//         code: 'Agent-assigned',
+//         short_desc: '001,003',
+//       },
+//     },
+//     refund_eligible: true,
+//     reason_required: true,
+//     cancellation_fee: {
+//       amount: {
+//         currency: 'INR',
+//         value: '50',
+//       },
+//     },
+//   },
+//   {
+//     fulfillment_state: {
+//       descriptor: {
+//         code: 'Order-picked-up',
+//         short_desc: '001,003',
+//       },
+//     },
+//     refund_eligible: true,
+//     reason_required: true,
+//     cancellation_fee: {
+//       amount: {
+//         currency: 'INR',
+//         value: '100',
+//       },
+//     },
+//   },
+//   {
+//     fulfillment_state: {
+//       descriptor: {
+//         code: 'Out-for-delivery',
+//         short_desc: '011,012,013,014,015',
+//       },
+//     },
+//     refund_eligible: true,
+//     reason_required: true,
+//     cancellation_fee: {
+//       amount: {
+//         currency: 'INR',
+//         value: '100.0',
+//       },
+//     },
+//   },
+// ];
 
 const tags = [
   {
@@ -484,7 +484,8 @@ class TaskController {
   async lockAgentForTask(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
       const updatedData = req.body;
-      const updatedTask: any = await taskService.createTask({ ...updatedData, cancellation_terms, tags });
+      // const updatedTask: any = await taskService.createTask({ ...updatedData, cancellation_terms, tags });
+      const updatedTask: any = await taskService.createTask({ ...updatedData, tags });
       const toUpdate = {
         isAvailable: false,
       };

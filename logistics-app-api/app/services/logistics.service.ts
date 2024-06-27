@@ -116,6 +116,10 @@ class LogisticsService {
           message: initRequest.message,
         })
       }
+      initData.message.order.fulfillments.map((item: any) => {
+        if (item.start.instructions) delete item.start.instructions
+        if (item.end.instructions) delete item.end.instructions
+      })
       return initData
     } catch (err) {
       return err
@@ -160,14 +164,14 @@ class LogisticsService {
           data: result.data,
           context: { ...context },
           message: confirmRequest.message,
-          createdAt: confirmRequest.context.timestamp,
+          createdAt: confirmRequest.message.order.created_at,
         })
       } else {
         confirmData = await getConfirm({
           data: result.data,
           context: { ...context },
           message: confirmRequest.message,
-          createdAt: confirmRequest.context.timestamp,
+          createdAt: confirmRequest.message.order.created_at,
         })
       }
       return confirmData
@@ -231,6 +235,7 @@ class LogisticsService {
       )
       const result = await httpRequest.send()
       const context = statusRequest.context
+
       let statusData
       if (statusRequest.context.core_version === '1.1.0') {
         statusData = await getStatusV2({ data: result.data, context: { ...context } })
@@ -344,6 +349,7 @@ class LogisticsService {
       const httpRequest = new HttpRequest(serverUrl, `/api/v1/logistics/trackOrder`, 'POST', trackOrderPayload, headers)
       const result = await httpRequest.send()
       const context = trackOrderRequest.context
+      result.data.order_id = trackOrderPayload.order_id
       const trackOrderData = await getTrackOrder({ data: result.data, context: { ...context } })
       return trackOrderData
     } catch (error) {

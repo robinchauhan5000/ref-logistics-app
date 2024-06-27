@@ -7,7 +7,7 @@ import eventEmitter from '../../../lib/utils/eventEmitter';
 import { getSearchResponse } from '../../../lib/utils/utilityFunctions';
 import SearchDumpService from '../v1/services/searchDump.service';
 import HubsService from '../v1/services/hubs.service';
-// import getDistance2 from '../../../lib/utils/distanceCalculation.util';
+import getDistance2 from '../../../lib/utils/distanceCalculation.util';
 interface RequestExtended extends Request {
   user?: any;
 }
@@ -17,9 +17,9 @@ const agentService = new AgentService();
 const taskService = new TaskService();
 const searchDumpService = new SearchDumpService();
 const hubsService = new HubsService();
-const descriptorName = 'ONDC Logistics Seller App by WITS';
-const long_desc = 'ONDC Logistics Seller App: Your all-in-one refrence logistics solution to test ONDC API.';
-const short_desc = 'ONDC Logistics Seller App: Your all-in-one refrence logistics solution to test ONDC API.';
+const descriptorName = 'ONDC Logistics';
+const long_desc = 'ONDC Logistics to delivery your goods in one go';
+const short_desc = 'ONDC Logistics to delivery your goods in one go';
 class AgentContoller {
   async searchAgent(req: Request, res: Response, next: NextFunction) {
     try {
@@ -31,97 +31,111 @@ class AgentContoller {
       const weight = searchPayload?.linked_order?.order.weight;
 
       const dimensions = searchPayload?.linked_order?.order.dimensions;
-      const fulfillmentType =searchPayload?.fulfillments[0]?.type;
+      const fulfillmentType = searchPayload?.fulfillments[0]?.type;
 
       const category = searchPayload?.category;
-      // const distance = await getDistance2(startGPS, endGPS);
-      const distance =4;
+      const distance = await getDistance2(startGPS, endGPS);
+
+      let type = 'P2P'
+      // const distance =4;
       if (distance > 25) {
-          const type = 'P2H2P';
-          // check hub for pickup location
-          const pickupPincode = searchPayload?.fulfillments[0]?.start?.location?.address?.area_code;
-          const sourceHub = await hubsService.getHubByPincode(parseInt(pickupPincode));
-          if (!sourceHub) {
-            res.send({
-              data: {
-                error: {
-                  type: 'DOMAIN-ERROR',
-                  code: '60001',
-                  message: 'Pickup location not serviceable by Logistics Provider',
-                },
-              },
-            });
-          }
-          const dropPincode = searchPayload?.fulfillments[0]?.end?.location?.address?.area_code;
-          const destinationHub: any = await hubsService.getHubByPincode(parseInt(dropPincode));
-          if (!destinationHub) {
-            res.send({
-              data: {
-                error: {
-                  type: 'DOMAIN-ERROR',
-                  code: '60002',
-                  message: 'Dropoff location not serviceable by Logistics Provider',
-                },
-              },
-            });
-          }
-          const agents = await agentService.getAgentList(searchPayload);
-
-          if (agents.length === 0) {
-            res.send({
-              data: {
-                error: {
-                  type: 'DOMAIN-ERROR',
-                  code: '60004',
-                  message: 'Delivery Partners not available',
-                },
-              },
-            });
-          }
-
-          const { responseData, delivery_id, RTO_id, taxPrice, weightPrice, total_charge } = await getSearchResponse(
-            startGPS,
-            endGPS,
-            agents[0],
-            weight,
-            dimensions,
-            category.id,
-            fulfillmentType,
-            type,
-            // destinationHub
-          );
-          await searchDumpService.create({
-            delivery: delivery_id,
-            rto: RTO_id,
-            order:  searchPayload?.linked_order?.order,
-            charge: {
-              tax: taxPrice,
-              charge: 124,
-              weightPrice: weightPrice,
-              totalCharge: total_charge,
-            },
-            type: 'P2H2P',
-            locations: {
-              sourceHub,
-              destinationHub,
-            },
-          });
-
+         type = 'P2H2P';
+        // check hub for pickup location
+        const pickupPincode = searchPayload?.fulfillments[0]?.start?.location?.address?.area_code;
+        const sourceHub = await hubsService.getHubByPincode(parseInt(pickupPincode));
+        if (!sourceHub) {
           res.send({
             data: {
-              id: agents[0]._id,
-              descriptor: {
-                name: descriptorName,
-                long_desc: long_desc,
-                short_desc: short_desc,
+              error: {
+                type: 'DOMAIN-ERROR',
+                code: '60001',
+                message: 'Pickup location not serviceable by Logistics Provider',
               },
-              ...responseData,
             },
           });
-        
-      }
-      else if (distance < 5) {
-        
+        }
+        const dropPincode = searchPayload?.fulfillments[0]?.end?.location?.address?.area_code;
+        const destinationHub: any = await hubsService.getHubByPincode(parseInt(dropPincode));
+        if (!destinationHub) {
+          res.send({
+            data: {
+              error: {
+                type: 'DOMAIN-ERROR',
+                code: '60002',
+                message: 'Dropoff location not serviceable by Logistics Provider',
+              },
+            },
+          });
+        }
+        const agents = await agentService.getAgentList(searchPayload);
+
+        if (agents.length === 0) {
+          res.send({
+            data: {
+              error: {
+                type: 'DOMAIN-ERROR',
+                code: '60004',
+                message: 'Delivery Partners not available',
+              },
+            },
+          });
+        }
+
+        if ( distance > 60 && category.id === 'Immediate Delivery') {
+          res.send({
+            data: {
+              error: {
+                type: 'DOMAIN-ERROR',
+                code: '60004',
+                message: 'We are not supporting immeditate delivery for long distance',
+              },
+            },
+          });
+        }
+
+        const { responseData, delivery_id, RTO_id, taxPrice, weightPrice, total_charge } = await getSearchResponse(
+          startGPS,
+          endGPS,
+          agents[0],
+          weight,
+          dimensions,
+          category.id,
+          fulfillmentType,
+          type,
+          // destinationHub
+        );
+        await searchDumpService.create({
+          delivery: delivery_id,
+          rto: RTO_id,
+          transaction_id: searchPayload.transaction_id,
+          order: searchPayload?.linked_order?.order,
+          fulfillments: searchPayload?.fulfillments,
+          payment: searchPayload?.payment,
+          charge: {
+            tax: taxPrice,
+            charge: 124,
+            weightPrice: weightPrice,
+            totalCharge: total_charge,
+          },
+          type: 'P2H2P',
+          locations: {
+            sourceHub,
+            destinationHub,
+          },
+        });
+
+        res.send({
+          data: {
+            id: agents[0]._id,
+            descriptor: {
+              name: descriptorName,
+              long_desc: long_desc,
+              short_desc: short_desc,
+            },
+            ...responseData,
+          },
+        });
+      } else if (distance <= 25) {
         const agents = await agentService.getAgentList(searchPayload);
 
         if (agents.length === 0) {
@@ -143,13 +157,17 @@ class AgentContoller {
           weight,
           dimensions,
           category.id,
-          fulfillmentType
+          fulfillmentType,
+          type
         );
 
         await searchDumpService.create({
           delivery: delivery_id,
           rto: RTO_id,
-          order:  searchPayload?.linked_order?.order,
+          transaction_id: searchPayload.transaction_id,
+          order: searchPayload?.linked_order?.order,
+          fulfillments: searchPayload?.fulfillments,
+          payment: searchPayload?.payment,
           charge: {
             tax: taxPrice,
             weightPrice: weightPrice,

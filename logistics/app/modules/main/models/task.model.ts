@@ -78,7 +78,10 @@ const address = new mongoose.Schema({
       content_type: { type: String },
       url: { type: String },
     },
-    images: [{ type: String }],
+    images: {
+      type: [{ type: String }],
+      default: undefined,
+    },
   },
 });
 const fulfillmentSchema = new mongoose.Schema({
@@ -98,8 +101,11 @@ const fulfillmentSchema = new mongoose.Schema({
   end: {
     type: address,
   },
-  tags: [{ type: Schema.Types.Mixed }],
-  agent: { name: { type: String }, mobile: { type: String } },
+  tags: {
+    type: [{ type: Schema.Types.Mixed }],
+    default: undefined,
+  },
+  agent: { name: { type: String }, phone: { type: String } },
   vehicle: { registration: { type: String } },
   tracking: { type: Boolean },
   state: {
@@ -288,7 +294,10 @@ const taskSchema = new mongoose.Schema(
       type: { type: String },
       collected_by: { type: String },
       '@ondc/org/collection_amount': { type: String },
-      '@ondc/org/settlement_details': [{ type: settlementDetailsSchema }],
+      '@ondc/org/settlement_details': {
+        type: [{ type: settlementDetailsSchema }],
+        default: undefined,
+      },
       status: { type: String },
       time: {
         timestamp: { type: String },
@@ -344,11 +353,14 @@ const taskSchema = new mongoose.Schema(
     orderCancelledBy: { type: String },
     context: { type: String },
     order_id: { type: String },
-    cancellation_terms: [
-      {
-        type: cancellationTermSchema,
-      },
-    ],
+    cancellation_terms: {
+      type: [
+        {
+          type: cancellationTermSchema,
+        },
+      ],
+      default: undefined,
+    },
     provider: {
       id: { type: String },
       // locations: [
@@ -370,6 +382,7 @@ const taskSchema = new mongoose.Schema(
     failedDeliveryCount: { type: Number, default: 0 },
     failedPickupCount: { type: Number, default: 0 },
     updatedAt: { type: Number },
+    confirmCreatedAt: Date,
   },
   {
     timestamps: true,

@@ -28,6 +28,20 @@ class TaskStatusService {
     }
   }
 
+  async getTastStatus(search = {}){
+    try {
+      const taskStatus = await TaskStatus.findOne(search);
+
+      return taskStatus;
+    } catch (error: any) {
+      if (error.status === 404 || error.status === 401) {
+        throw error;
+      } else {
+        throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
   async taskStatusByTaskId(taskId: string) {
     try {
       const taskStatusList = await TaskStatus.find({ taskId }).sort({ createdAt: 1 });

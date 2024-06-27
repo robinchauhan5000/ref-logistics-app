@@ -134,8 +134,8 @@ export interface On_init {
       fulfillments: OrderFulfillment[]
       quote: OrderQuote
       payment: OrderPayment
-      cancellation_terms: OrderCancellationTerm[]
-      tags: OrderTags[]
+      cancellation_terms?: OrderCancellationTerm[]
+      tags?: OrderTags[]
     }
   }
 }

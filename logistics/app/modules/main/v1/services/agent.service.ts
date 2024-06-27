@@ -123,7 +123,7 @@ class AgentService {
       const startLong = coordinates[1];
       const query = {
         $and: [
-          { isOnline: true },
+          // { isOnline: true },
           // { isAvailable: true },
           {
             currentLocation: {

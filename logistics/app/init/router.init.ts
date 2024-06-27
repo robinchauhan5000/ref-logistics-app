@@ -13,6 +13,7 @@ import issueRouter from '../modules/main/routes/issue.route';
 import hubsRouter from '../modules/main/routes/hubs.routes';
 import pricingRouter from '../modules/main/routes/pricing.routes';
 import subscribeRouter from '../modules/main/routes/subscribe.route';
+import ondcRequestRouter from '../modules/main/routes/ondcRequest.route';
 
 const routes: Router = Router();
 
@@ -29,4 +30,6 @@ routes.use(issueRouter);
 routes.use(hubsRouter);
 routes.use(pricingRouter);
 routes.use(subscribeRouter);
+routes.use(ondcRequestRouter);
+
 export default routes;
