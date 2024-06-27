@@ -14,10 +14,8 @@ import { On_Track } from './interfaces/onTrackInterface'
 
 const BPP_ID = process.env.BPP_ID
 const BPP_URI = process.env.BPP_URI
-// const providers = 'https://logistics-dev.thewitslab.com/'
-const descriptorName = 'ONDC Logistics Seller App by WITS'
-// const long_desc = 'ONDC Logistics Seller App by WITS'
-// const short_desc = 'ONDC Logistics Seller App by WITS'
+const descriptorName = 'ONDC Logistics'
+
 
 const states = [
   {
@@ -98,9 +96,11 @@ export const getInit = async (data: any) => {
     delete context.ttl
 
     // const { items } = data.message?.order
-    const { tags, cancellation_terms, assignee, fulfillments, payment, items, quote } = data.data
+    const { tags, assignee, fulfillments, payment, items, quote } = data.data
+    if (payment.type !== 'ON-FULFILLMENT') {
+      delete payment['@ondc/org/collection_amount']
+    }
 
-    const paymentResponse = payment
     const updatedFulfillment = fulfillments?.map((item: any) => {
       if (item.type === 'Delivery') {
         return {
@@ -141,9 +141,9 @@ export const getInit = async (data: any) => {
           items: items,
           fulfillments: updatedFulfillment,
           quote: quote,
-          payment: paymentResponse,
-          cancellation_terms: cancellation_terms,
-          tags: tags,
+          payment: payment,
+          // cancellation_terms: cancellation_terms,
+          // tags: tags,       // TODO: will update later
         },
       },
     }
@@ -156,7 +156,7 @@ export const getInit = async (data: any) => {
 
 export const getConfirm = async (data: any) => {
   const { context } = data
-  context.timestamp = new Date().toISOString()
+  context.timestamp = data.data.task.fulfillments[0]?.start?.time?.range?.start ?? new Date().toISOString()
   context.bpp_id = BPP_ID
   context.bpp_uri = BPP_URI
   context.action = 'on_confirm'
@@ -169,17 +169,28 @@ export const getConfirm = async (data: any) => {
     }
     return removeIdKeys(schema)
   }
-  const { payment, billing, cancellation_terms, tags, fulfillments, provider, items, quote, order_id } = data.data.task
+  const {
+    payment,
+    billing,
+    // cancellation_terms,
+    tags,
+    fulfillments,
+    provider,
+    items,
+    quote,
+    order_id,
+    confirmCreatedAt,
+  } = data.data.task
   fulfillments[0].state.descriptor.code = 'Pending'
 
   delete fulfillments[0]?.agent
   delete fulfillments[0]?.vehicle
-  fulfillments[0].tracking = false
+  fulfillments[0].tracking = true
   if (order_id == 'errorOrder62506') {
     items[0].time.duration = 'PT49M'
   }
-  if (items[0]?.descriptor?.code === 'P2H2P') {
-    fulfillments[0]['@ondc/org/awb_no'] = '127262193237777'
+  if (items[0]?.descriptor?.code === 'P2H2P' && !fulfillments[0]['@ondc/org/awb_no']) {
+    fulfillments[0]['@ondc/org/awb_no'] = '1227262193237777'
   }
 
   if (items[0]?.descriptor?.code === 'P2H2P') {
@@ -191,32 +202,25 @@ export const getConfirm = async (data: any) => {
   //   return obj?.possibleStates?.includes(status)
   // })
 
-
-
-  
-
   /// Enabling Tracking specifically for Hyperlocal (P2P)
-  function enableTrackingForHyperLocal(items:any, fulfillments:any){
+  function enableTrackingForHyperLocal(items: any, fulfillments: any) {
     items.forEach((item: any) => {
-      console.log("item278",item)
+      console.log('item278', item)
       fulfillments.forEach((fulfillment: any) => {
         if (item.fulfillment_id === fulfillment.id) {
-          console.log("281",item.fulfillment_id,fulfillment.id)
-          if (item.descriptor.code === "P2P") {
-            fulfillment.tracking = true;
-            console.log("283",item.tracking)
-  
+          console.log('281', item.fulfillment_id, fulfillment.id)
+          if (item.descriptor.code === 'P2P') {
+            fulfillment.tracking = true
+            console.log('283', item.tracking)
           } else {
-            fulfillment.tracking = false; 
+            fulfillment.tracking = true
           }
         }
-      });
-    });
+      })
+    })
   }
 
-
   enableTrackingForHyperLocal(items, fulfillments)
- 
 
   const schema: On_confirm = {
     context,
@@ -231,9 +235,9 @@ export const getConfirm = async (data: any) => {
         billing: billing,
         payment: paymentResponse,
         '@ondc/org/linked_order': data?.data?.task?.linked_order,
-        cancellation_terms: cancellation_terms,
+        // cancellation_terms: cancellation_terms,
         tags: tags,
-        created_at: data.createdAt,
+        created_at: confirmCreatedAt,
         updated_at: data.context.timestamp,
       },
     },
@@ -243,7 +247,7 @@ export const getConfirm = async (data: any) => {
 }
 
 export const getUpdate = async (data: any) => {
-  data.context.timestamp = new Date().toISOString()
+  data.context.timestamp = data.data.updatedTask.fulfillments[0]?.start?.time?.range?.start ??  new Date().toISOString()
   const context = data.context
 
   context.bpp_id = BPP_ID
@@ -321,13 +325,36 @@ export const getStatus = async (data: any) => {
     return obj?.possibleStates?.includes(status)
   })
 
-  const updatedFulfillment = fulfillments?.map((item: any) => {
+  if (items[0]?.descriptor?.code === 'P2H2P' && !fulfillments[0]['@ondc/org/awb_no']) {
+    fulfillments[0]['@ondc/org/awb_no'] = '1227262193237777'
+  }
+
+  const updatedFulfillment = fulfillments?.map((item: any, index: number) => {
+    item.start.time = { ...item.start.time, ...(index !== 1 && { duration: 'PT15M' }) }
+    item.end.tags = [
+      {
+        code: 'url_enabled',
+        value: 'yes',
+      },
+    ]
     if (item.type === 'Delivery' || item.type === 'Return') {
-      delete item.tags
-      return item
-    } else {
-      return item
+      item.tags = [
+        {
+          code: 'tracking',
+          list: [
+            {
+              code: 'gps_enabled',
+              value: items[0]?.descriptor?.code === 'P2P' ? 'yes' : 'no',
+            },
+            {
+              code: 'url_enabled',
+              value: items[0]?.descriptor?.code === 'P2H2P' ? 'yes' : 'no',
+            },
+          ],
+        },
+      ]
     }
+    return item
   })
 
   const schema: any = {
@@ -354,6 +381,7 @@ export const getStatus = async (data: any) => {
       },
     }
   }
+  schema.message.order.payment.status = 'NOT-PAID'
   return removeIdKeys(schema)
 }
 
@@ -390,29 +418,42 @@ export const getCancel = async (data: any) => {
     }
     return removeIdKeys(schema)
   }
-  const { order_id, status, items, quote, fulfillments, billing, linked_order, payment, provider, orderCancelledBy } =
-    data?.data?.data
+  const {
+    order_id,
+    status,
+    items,
+    quote,
+    fulfillments,
+    billing,
+    linked_order,
+    payment,
+    provider,
+    orderCancelledBy,
+    confirmCreatedAt,
+  } = data?.data?.data
 
   if (fulfillments?.length > 1) {
-
-  fulfillments.forEach((eachFulfillment:any)=>{
-      if (eachFulfillment.state.descriptor.code === "Cancelled") {
+    fulfillments.forEach((eachFulfillment: any) => {
+      if (eachFulfillment.state.descriptor.code === 'Cancelled') {
         eachFulfillment.tags.push({
           code: 'precancel_state',
+
           list: [
             {
               code: 'fulfillment_state',
+
               value: status,
             },
+
             {
               code: 'updated_at',
+
               value: new Date(data?.data?.data.updatedAt).toISOString(),
             },
           ],
-        });
+        })
       }
-    }
-  )
+    })
     const schema = {
       context,
       message: {
@@ -433,6 +474,7 @@ export const getCancel = async (data: any) => {
           payment: payment,
           '@ondc/org/linked_order': linked_order,
           updated_at: data.context.timestamp,
+          created_at: data?.data?.data.createdAt,
         },
       },
     }
@@ -478,6 +520,7 @@ export const getCancel = async (data: any) => {
         payment: payment,
         '@ondc/org/linked_order': linked_order,
         updated_at: data.context.timestamp,
+        created_at: confirmCreatedAt,
       },
     },
   }
@@ -568,7 +611,30 @@ export const getIssueStatus = async (data: any) => {
 }
 
 export const getTrackOrder = async (data: any) => {
-
+  const tags = [
+    {
+      code: 'order',
+      list: [
+        {
+          code: 'id',
+          value: data?.data.order_id,
+        },
+      ],
+    },
+    {
+      code: 'config',
+      list: [
+        {
+          code: 'attr',
+          value: data?.data?.data.items[0].descriptor.code === 'P2P' ? 'tracking.location.gps' : 'tracking.url',
+        },
+        {
+          code: 'type',
+          value: data?.data?.data.items[0].descriptor.code === 'P2P' ? 'live_poll' : 'deferred',
+        },
+      ],
+    },
+  ]
   const currentTime = new Date().toISOString()
   const context = data.context
   const actionTimeStamp = data.context.timestamp
@@ -584,18 +650,24 @@ export const getTrackOrder = async (data: any) => {
       tracking: {
         id: data?.data?.data?.fulfillments[0]?.id,
         url: data?.data?.data?.trackingUrl,
-        location: data?.data?.data?.trackStatus==="inactive"? {} : {
-          gps: `${(data?.data?.data?.assignee?.currentLocation?.coordinates[0]).toFixed(
-            6,
-          )},${(data?.data?.data?.assignee?.currentLocation?.coordinates[1]).toFixed(6)}`,
-          time: {
-            timestamp: actionTimeStamp,
-          },
-          updated_at: currentTime,
-        },
+        location:
+          data?.data?.data?.trackStatus === 'inactive'
+            ? {}
+            : {
+                gps: `${(data?.data?.data?.assignee?.currentLocation?.coordinates[0]).toFixed(
+                  6,
+                )},${(data?.data?.data?.assignee?.currentLocation?.coordinates[1]).toFixed(6)}`,
+                time: {
+                  timestamp: actionTimeStamp,
+                },
+                updated_at: currentTime,
+              },
         status: data?.data?.data?.trackStatus,
       },
     },
+  }
+  if (data?.data?.data?.trackStatus === 'active') {
+    schema.message.tracking.tags = tags
   }
 
   return schema

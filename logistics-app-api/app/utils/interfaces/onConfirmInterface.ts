@@ -255,7 +255,7 @@ interface Message {
     billing: Billing
     payment: Payment
     '@ondc/org/linked_order': LinkedOrder
-    cancellation_terms: CancellationTerm[]
+    cancellation_terms?: CancellationTerm[]
     tags: Tag[]
     created_at: string
     updated_at: string

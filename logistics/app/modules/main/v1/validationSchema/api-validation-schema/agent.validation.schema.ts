@@ -174,4 +174,80 @@ export default {
         }),
     });
   },
+
+  searchAgent: () => {
+    return Joi.object({
+      category: Joi.object({
+        id: Joi.string().valid(...validEnums)
+      }),
+      provider: Joi.object({
+        time: {
+          days: Joi.string(),
+          schedule: Joi.object({
+            holidays: Joi.array().allow("")
+          }),
+          duration: Joi.string(),
+          range: Joi.object({
+            start: Joi.string(),
+            end: Joi.string()
+          })
+        }
+      }),
+      fulFillment: Joi.object({
+        type: Joi.string(),
+        start: Joi.object({
+          location: Joi.object({
+            gps: Joi.string(),
+            address: Joi.object({
+              area_code: Joi.string()
+            })
+          }),
+          authorization: Joi.object({
+            type: Joi.string()
+          }).optional()
+        }),
+        end: Joi.object({
+          location: Joi.object({
+            gps: Joi.string(),
+            address: Joi.object({
+              area_code: Joi.string()
+            }),
+            authorization: Joi.object({
+              type: Joi.string()
+            }).optional()
+          })
+        })
+      }),
+      payment: Joi.object({
+        type: Joi.string(),
+        "@ondc/org/collection_amount": Joi.string().valid("ON-ORDER", "ON-FULFILLMENT", "POST-FULFILLMENT")
+      }),
+      "@ondc/org/payload_details": Joi.object({
+        weight: Joi.object({
+          unit: Joi.string(),
+          value: Joi.number()
+        }),
+        dimensions: Joi.object({
+          length: Joi.object({
+            unit: Joi.string(),
+            value: Joi.number()
+          }),
+          breadth: Joi.object({
+            unit: Joi.string(),
+            value: Joi.number()
+          }),
+          height: Joi.object({
+            unit: Joi.string(),
+            value: Joi.number()
+          })
+        }),
+        category: Joi.string(),
+        value: Joi.object({
+          currency: Joi.string(),
+          value: Joi.string()
+        }),
+        dangerous_goods: Joi.boolean().optional()
+      })
+    })
+  }
 };

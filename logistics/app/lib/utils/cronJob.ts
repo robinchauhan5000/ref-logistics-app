@@ -1,22 +1,22 @@
-import TaskService from '../../modules/main/v1/services/task.service';
-import AgentService from '../../modules/main/v1/services/agent.service';
-import TicketStatusService from '../../modules/main/v1/services/taskStatus.service';
+// import TaskService from '../../modules/main/v1/services/task.service';
+// import AgentService from '../../modules/main/v1/services/agent.service';
+// import TicketStatusService from '../../modules/main/v1/services/taskStatus.service';
 
 // import IssueStatusService from '../../modules/authentication/v1/services/issueStatus.service';
 import cron from 'node-cron';
-import ModifyPayload from './modifyPayload';
-import HttpRequest from './HttpRequest';
-import InternalServerError from '../errors/internal-server-error.error';
-import MESSAGES from './messages';
+// import ModifyPayload from './modifyPayload';
+// import HttpRequest from './HttpRequest';
+// import InternalServerError from '../errors/internal-server-error.error';
+// import MESSAGES from './messages';
 
-const modifyPayload = new ModifyPayload();
+// const modifyPayload = new ModifyPayload();
 // import Agent from '../../modules/main/models/agent.model';
 
-const taskService = new TaskService();
-const agentService = new AgentService();
-const taskStatusService = new TicketStatusService();
+// const taskService = new TaskService();
+// const agentService = new AgentService();
+// const taskStatusService = new TicketStatusService();
 
-const clientURL = process.env.PROTOCOL_BASE_URL || '';
+// const clientURL = process.env.PROTOCOL_BASE_URL || '';
 
 // const issueStatusService = new IssueStatusService();
 
@@ -119,80 +119,80 @@ const clientURL = process.env.PROTOCOL_BASE_URL || '';
 //   });
 // };
 
-const assignNewDriver = async () => {
-  try {
-      const query = { is_confirmed: true, status: 'In-transit' };
-  const tasks = await taskService.getActiveTasks(query);
-  tasks.forEach(async (task: any)=> {
-        const taskUpdateDetails = {
-      taskId : task._id,
-      status: "At-destination-hub", 
-      // agentId: task.assignee
-    }
-    await taskStatusService.create(taskUpdateDetails)
-    const searchCoordinates = task?.otherFulfillments[1]?.start?.location?.address?.location?.coordinates?.join(",")||"0,0";
-    console.log("searchCoordinates++++++++++searchCoordinates",searchCoordinates);
+// const assignNewDriver = async () => {
+//   try {
+//       const query = { is_confirmed: true, status: 'In-transit' };
+//   const tasks = await taskService.getActiveTasks(query);
+//   tasks.forEach(async (task: any)=> {
+//         const taskUpdateDetails = {
+//       taskId : task._id,
+//       status: "At-destination-hub", 
+//       // agentId: task.assignee
+//     }
+//     await taskStatusService.create(taskUpdateDetails)
+//     const searchCoordinates = task?.otherFulfillments[1]?.start?.location?.address?.location?.coordinates?.join(",")||"0,0";
+//     console.log("searchCoordinates++++++++++searchCoordinates",searchCoordinates);
     
-    if(!searchCoordinates){
-      return false ;
-    }
-    const agent =  await agentService.searchAgent(searchCoordinates, "")
-    console.log({agent: agent.agents[0]})
-    const agentDetails = agent.agents[0]
-    if(agentDetails?._id){
-    task.status = 'At-destination-hub'
-    task.assignee = agentDetails._id
+//     if(!searchCoordinates){
+//       return false ;
+//     }
+//     const agent =  await agentService.searchAgent(searchCoordinates, "")
+//     console.log({agent: agent.agents[0]})
+//     const agentDetails = agent.agents[0]
+//     if(agentDetails?._id){
+//     task.status = 'At-destination-hub'
+//     task.assignee = agentDetails._id
 
-    task.fulfillments[0] = {
-      ...task.fulfillments[0]._doc,
-             state: {
-            descriptor: {
-              code: 'At-destination-hub',
-            },
-          },
-        agent: { name: agentDetails.userId.name, mobile:  agentDetails.userId.mobile },
-        vehicle: { registration: agentDetails.vehicleDetails.vehicleNumber }, 
-    }
+//     task.fulfillments[0] = {
+//       ...task.fulfillments[0]._doc,
+//              state: {
+//             descriptor: {
+//               code: 'At-destination-hub',
+//             },
+//           },
+//         agent: { name: agentDetails.userId.name, mobile:  agentDetails.userId.mobile },
+//         vehicle: { registration: agentDetails.vehicleDetails.vehicleNumber }, 
+//     }
 
-    task.otherFulfillments[1] = {
-      ...task.otherFulfillments[1],
-      assignee : agentDetails._id
-    }
+//     task.otherFulfillments[1] = {
+//       ...task.otherFulfillments[1],
+//       assignee : agentDetails._id
+//     }
     
 
-    await task.save()
-              const headers = {};
-          const onStatusPayload = await modifyPayload.status(task);
-          const httpRequest = new HttpRequest(
-            `${clientURL}/protocol/v1/status`, //TODO: allow $like query
-            'POST',
-            onStatusPayload,
-            headers,
-          );
-          httpRequest.send();
-    //create new order for other user
-    await taskStatusService.create({
-            taskId : task._id,
-      status: "Order-confirmed", 
-      agentId: agentDetails._id
-    })
-        //create new order for other user
-    await taskStatusService.create({
-            taskId : task._id,
-      status: "Agent-assigned", 
-      agentId: agentDetails._id
-    })
-  }
-    return true;
-  })
-  }
-    catch (error) {
-      console.log("error+++++",error);
+//     await task.save()
+//               const headers = {};
+//           const onStatusPayload = await modifyPayload.status(task);
+//           const httpRequest = new HttpRequest(
+//             `${clientURL}/protocol/v1/status`, //TODO: allow $like query
+//             'POST',
+//             onStatusPayload,
+//             headers,
+//           );
+//           httpRequest.send();
+//     //create new order for other user
+//     await taskStatusService.create({
+//             taskId : task._id,
+//       status: "Order-confirmed", 
+//       agentId: agentDetails._id
+//     })
+//         //create new order for other user
+//     await taskStatusService.create({
+//             taskId : task._id,
+//       status: "Agent-assigned", 
+//       agentId: agentDetails._id
+//     })
+//   }
+//     return true;
+//   })
+//   }
+//     catch (error) {
+//       console.log("error+++++",error);
       
-      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+//       throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     
-  }
-}
+//   }
+// }
 
 // const checkOnline = async () => {
 //   const agentList = await Agent.find({ isOnline: true });
@@ -214,6 +214,6 @@ export function runCronJob(): void {
     // checkIssueStatusControl();
     // checkOnline();
     // removeDriverFromPendingTask();
-    assignNewDriver()
+    // assignNewDriver()
   });
 }

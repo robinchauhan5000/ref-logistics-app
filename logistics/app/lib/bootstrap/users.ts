@@ -5,8 +5,8 @@ const users =
   env === 'development'
     ? [
         {
-          name: 'Wits Admin',
-          firstName: 'Wits',
+          name: 'ONDC Admin',
+          firstName: 'ONDC',
           lastName: 'Admin',
           username: adminEmail,
           email: adminEmail,
@@ -16,13 +16,13 @@ const users =
           nationality: 'Indian',
           dateOfBirth: '1996-03-04',
           mobile: '+918146448923',
-          password: 'Dummy@pwd29!',
+          password: 'Ondc@1234!',
         },
       ]
     : [
         {
-          name: 'Wits',
-          firstName: 'Wits',
+          name: 'ONDC',
+          firstName: 'ONDC',
           lastName: 'Admin',
           username: adminEmail,
           email: adminEmail,
@@ -32,7 +32,7 @@ const users =
           nationality: 'Indian',
           dateOfBirth: '1996-03-04',
           mobile: '+918146448923',
-          password: 'Dummy@pwd29!',
+          password: 'Ondc@1234!',
         },
       ];
 

@@ -106,6 +106,7 @@ class ModifyPayload {
 
   async cancel(data: any) {
     const context = JSON.parse(data.context)
+    const created_at = data.createdAt.toISOString()
     context.bpp_id = BPP_ID
     context.bpp_uri = BPP_URI
     context.action = 'on_cancel'
@@ -166,6 +167,7 @@ class ModifyPayload {
             payment: payment,
             '@ondc/org/linked_order': linked_order,
             updated_at: context.timestamp,
+            created_at:created_at
           },
         },
       }
@@ -208,6 +210,7 @@ class ModifyPayload {
           payment: payment,
           '@ondc/org/linked_order': linked_order,
           updated_at: context.timestamp,
+          created_at:created_at 
         },
       },
     }

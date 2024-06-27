@@ -8,21 +8,21 @@ import AuthenticationJwtToken from '../utils/AuthenticationJwtToken';
 interface CustomRequest extends Request {
   user?: any;
 }
-interface IRole {
-  name: string;
-  _id: string;
-}
-interface ICurrentUser {
-  _id: string;
-  name: string;
-  mobile: string;
-  email: string;
-  role: IRole;
-  enabled: number;
-  isAgentDetailsUpdated?: boolean;
-  password?: string;
-  activeToken?: string;
-}
+// interface IRole {
+//   name: string;
+//   _id: string;
+// }
+// interface ICurrentUser {
+//   _id: string;
+//   name: string;
+//   mobile: string;
+//   email: string;
+//   role: IRole;
+//   enabled: number;
+//   isAgentDetailsUpdated?: boolean;
+//   password?: string;
+//   activeToken?: string;
+// }
 
 const authentication = async (req: CustomRequest, res: Response, next: NextFunction) => {
   try {
@@ -35,10 +35,10 @@ const authentication = async (req: CustomRequest, res: Response, next: NextFunct
     const currentTime = Math.floor(Date.now() / 1000);
     const tokenExpirationTime = decoded.exp;
     const tokenValidFor = tokenExpirationTime - currentTime;
-    const currentUser: ICurrentUser | null = await User.findOne({ _id: req.user.user.id });
-    if (currentUser?.activeToken !== req.headers.authorization) {
-      next(new UnauthenticatedError(MESSAGES.CONCURRENT_SESSION_TERMINATE));
-    }
+    // const currentUser: ICurrentUser | null = await User.findOne({ _id: req.user.user.id });
+    // if (currentUser?.activeToken !== req.headers.authorization) {
+    //   next(new UnauthenticatedError(MESSAGES.CONCURRENT_SESSION_TERMINATE));
+    // }
     if (tokenValidFor <= 60 * 10) {
       // 600 seconds = 10 minutes
       // Generate a new token as a refresh token

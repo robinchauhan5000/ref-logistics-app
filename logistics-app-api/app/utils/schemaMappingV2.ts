@@ -5,12 +5,12 @@ import { On_initV2 } from './interfaces/onInitInterfaceV2'
 import { On_confirm } from './interfaces/onConfirmInterfaceV2'
 import { On_update } from './interfaces/onUpdateInterfaceV2'
 import { removeIdKeys, calculateDeliveryCharges } from '../utils/utilityFunctions'
-const descriptorName = 'ONDC Logistics Seller App by WITS'
+const descriptorName = 'ONDC Logistics'
 import { uuid } from 'uuidv4'
 
 // import { uuid } from 'uuidv4'
-const long_desc = 'ONDC Logistics Seller App by WITS'
-const short_desc = 'ONDC Logistics Seller App by WITS'
+const long_desc = 'ONDC Logistics'
+const short_desc = 'ONDC Logistics'
 const states = [
   {
     key: 'Accepted',

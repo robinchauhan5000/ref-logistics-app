@@ -16,16 +16,37 @@ export const encryptPIN = (PIN: string): Promise<any> => {
   });
 };
 
-export const durationToTimestamp = (duration: string) => {
-  if ((duration.startsWith('pT') && duration.endsWith('D')) || duration.endsWith('M') || duration.endsWith('H')) {
-    const numericPart = parseInt(duration.substring(2, duration.length - 1));
+// export const durationToTimestamp = (duration: string) => {
+//   if ((duration.startsWith('pT') && duration.endsWith('D')) || duration.endsWith('M') || duration.endsWith('H')) {
+//     const numericPart = parseInt(duration.substring(2, duration.length - 1));
 
-    if (duration.endsWith('M')) return Date.now() + numericPart * 60 * 1000;
-    else if (duration.endsWith('H')) return Date.now() + numericPart * 60 * 60 * 1000;
-    else if (duration.endsWith('H')) return Date.now() + numericPart * 24 * 60 * 60 * 1000; // Convert hours to milliseconds
+//     if (duration.endsWith('M')) return Date.now() + numericPart * 60 * 1000;
+//     else if (duration.endsWith('H')) return Date.now() + numericPart * 60 * 60 * 1000;
+//     else if (duration.endsWith('H')) return Date.now() + numericPart * 24 * 60 * 60 * 1000; // Convert hours to milliseconds
+//   }
+//   console.error('Invalid duration format when  converting duration to timestamp');
+//   throw new Error('Invalid duration format when  converting duration to timestamp');
+// };
+
+export const durationToTimestamp = (duration: string) => {
+  if (duration.startsWith('P') && duration.endsWith('D')) {
+    const numericPart = parseInt(duration.substring(1, duration.length - 1));
+
+    return Date.now() + numericPart * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+  } else if (duration.startsWith('PT')) {
+    if (duration.endsWith('M')) {
+      const numericPart = parseInt(duration.substring(2, duration.length - 1));
+
+      return Date.now() + numericPart * 60 * 1000; // Convert minutes to milliseconds
+    } else if (duration.endsWith('H')) {
+      const numericPart = parseInt(duration.substring(2, duration.length - 1));
+
+      return Date.now() + numericPart * 60 * 60 * 1000; // Convert hours to milliseconds
+    }
   }
-  console.error('Invalid duration format when  converting duration to timestamp');
-  throw new Error('Invalid duration format when  converting duration to timestamp');
+
+  console.error('Invalid duration format when converting duration to timestamp');
+  throw new Error('Invalid duration format when converting duration to timestamp');
 };
 
 export const isValidPIN = async (PIN: string, userPIN: string): Promise<boolean> => {
@@ -116,13 +137,13 @@ export const categoryCalculation = (category?: Category) => {
   category === 'Express Delivery'
     ? (multiplier = 0.15)
     : // : category === "Standard Delivery" ? multiplier = 0.2
-      category === 'Immediate Delivery'
-      ? (multiplier = 0.1)
-      : category === 'Same Day Delivery'
-        ? (multiplier = 0.05)
-        : category === 'Next Day Delivery'
-          ? (multiplier = 0.025)
-          : multiplier === 0;
+    category === 'Immediate Delivery'
+    ? (multiplier = 0.1)
+    : category === 'Same Day Delivery'
+    ? (multiplier = 0.05)
+    : category === 'Next Day Delivery'
+    ? (multiplier = 0.025)
+    : multiplier === 0;
   return multiplier;
 };
 
@@ -131,13 +152,15 @@ export const calculateDuration = (category?: Category) => {
   category === 'Express Delivery'
     ? (duration = 'P4D')
     : // : category === "Standard Delivery" ? duration = 0.2
-      category === 'Immediate Delivery'
-      ? (duration = 'PT60M')
-      : category === 'Same Day Delivery'
-        ? (duration = 'P1D')
-        : category === 'Next Day Delivery'
-          ? (duration = 'P1D')
-          : duration === 'P1D';
+    category === 'Immediate Delivery'
+    ? (duration = 'PT60M')
+    : category === 'Same Day Delivery'
+    ? (duration = 'P1D')
+    : category === 'Next Day Delivery'
+    ? (duration = 'P1D')
+    : category === 'Standard Delivery'
+    ? (duration = 'P4D')
+    : duration === 'P1D';
   return duration;
 };
 
@@ -158,7 +181,7 @@ export const checkMoterableDistance = async (startGPS: string[], endGPS: string[
     return distanceInKilometers;
   } catch (error) {
     console.log({ error });
-    return 0;
+    return 45;
   }
 };
 
@@ -225,8 +248,53 @@ export const getSearchResponse = async (
     const newDate = new Date(newDateInMillis);
     return newDate.toISOString();
   };
+
+  const getPlusOneTime2 = (duration: string) => {
+    const originalDate = new Date();
+
+    console.log(originalDate);
+
+    const daysMatch = duration.match(/P(\d+)D/);
+    const hoursMatch = duration.match(/T(\d+)H/);
+    const minutesMatch = duration.match(/T(\d+)M/);
+    const secondsMatch = duration.match(/T(\d+)S/);
+
+    let days = 0,
+      hours = 0,
+      minutes = 0,
+      seconds = 0;
+
+    if (daysMatch) {
+      days = parseInt(daysMatch[1], 10);
+    }
+    if (hoursMatch) {
+      hours = parseInt(hoursMatch[1], 10);
+    }
+    if (minutesMatch) {
+      minutes = parseInt(minutesMatch[1], 10);
+    }
+    if (secondsMatch) {
+      seconds = parseInt(secondsMatch[1], 10);
+    }
+
+    originalDate.setDate(originalDate.getDate() + days);
+    originalDate.setHours(originalDate.getHours() + hours);
+    originalDate.setMinutes(originalDate.getMinutes() + minutes);
+    originalDate.setSeconds(originalDate.getSeconds() + seconds);
+
+    return originalDate.toISOString();
+  };
+
+  const calcDeliveryTimestamp = () => {
+    if (type === 'P2H2P') {
+      return formatedDate(getCategoryTimestamp(type).toISOString());
+    }
+
+    return formatedDate(getPlusOneTime2(duration));
+  };
+
   const totaleliveryDays = type === 'P2H2P' ? 4 : 1;
-  const rtoDays = type === 'P2H2P' ? 6 : 1;
+  // const rtoDays = type === 'P2H2P' ? 6 : 1;
   const responseData: any = {
     categories: [
       {
@@ -235,7 +303,7 @@ export const getSearchResponse = async (
           //category level TAT for S2D (ship-to-delivery), can be overridden by item-level TAT whenever there are multiple options for the same category (e.g. 30 min, 45 min, 60 min, etc.);
           label: 'TAT',
           duration: duration,
-          timestamp: formatedDate(getCategoryTimestamp(type).toISOString()),
+          timestamp: calcDeliveryTimestamp(),
         },
       },
     ],
@@ -250,10 +318,10 @@ export const getSearchResponse = async (
               type === 'P2H2P'
                 ? 'P1D'
                 : category === 'Immediate Delivery'
-                  ? 'PT15M'
-                  : category === 'Same Day Delivery'
-                    ? 'PT2H'
-                    : 'P1D',
+                ? 'PT15M'
+                : category === 'Same Day Delivery'
+                ? 'PT2H'
+                : 'P1D',
           },
         },
         tags: [
@@ -300,8 +368,8 @@ export const getSearchResponse = async (
             category === 'Express Delivery'
               ? formatedDate(getPlusOneTime(totaleliveryDays))
               : category === 'Next Day Delivery'
-                ? formatedDate(getPlusOneTime(totaleliveryDays))
-                : formatedDate(new Date().toISOString()),
+              ? formatedDate(getPlusOneTime(totaleliveryDays))
+              : formatedDate(new Date().toISOString()),
         },
       },
       {
@@ -321,8 +389,8 @@ export const getSearchResponse = async (
         },
         time: {
           label: 'TAT',
-          duration: `P${rtoDays}D`,
-          timestamp: formatedDate(getPlusOneTime(rtoDays)),
+          duration: duration,
+          timestamp: calcDeliveryTimestamp(),
         },
       },
     ],
@@ -395,3 +463,56 @@ export function areObjectsEqual(obj1: any, obj2: any) {
 
   return true;
 }
+
+export const startProcessingAtGivenTime = (dateString: string, after: number) => {
+  const dateObj = new Date(dateString);
+
+  // Add 5 minutes to the Date object
+  dateObj.setTime(dateObj.getTime() + after * 60000); // 5 minutes = 5 * 60 seconds * 1000 milliseconds
+
+  // Convert the new Date object back to the ISO 8601 format
+  const newDateString = dateObj.toISOString();
+
+  return newDateString;
+};
+
+interface PayloadComparisonResult {
+  errors: { [key: string]: string }[];
+}
+
+export const comparePayload = (sourcePayload: any, targetPayload: any, result: PayloadComparisonResult = { errors: [] }): PayloadComparisonResult => {
+  const keys = Array.isArray(sourcePayload) ? sourcePayload : Object.keys(sourcePayload);
+
+  if (Array.isArray(targetPayload) && !targetPayload?.length) {
+    return result;
+  }
+
+  keys.forEach((key, i) => {
+    if (Array.isArray(sourcePayload[key]) && Array.isArray(targetPayload[key])) {
+      result = { ...result, ...comparePayload(sourcePayload[key], targetPayload[key], result) };
+    } else if (typeof key === 'object') {
+      result = { ...result, ...comparePayload(key, targetPayload[i], result) };
+    } else if (typeof sourcePayload[key] === 'object' && typeof targetPayload[key] === 'object') {
+      result = { ...result, ...comparePayload(sourcePayload[key], targetPayload[key], result) };
+    } else if (Array.isArray(sourcePayload[key]) && targetPayload[key] === undefined) {
+      result.errors.push({
+        [key]: `Key is missing in the request payload`,
+      });
+    } else if (typeof sourcePayload[key] === 'object' && targetPayload[key] === undefined) {
+      result.errors.push({
+        [key]: `Key is missing in the request payload`,
+      });
+    } else if (sourcePayload[key] && targetPayload[key] === undefined) {
+      result.errors.push({
+        [key]: `Key is missing in the request payload`,
+      });
+    } else if (sourcePayload[key] !== targetPayload[key]) {
+      result.errors.push({
+        [key]: `Value doesn't match. Stored value: ${sourcePayload[key]} and request value: ${targetPayload[key]}`,
+      });
+    }
+  });
+
+  return result;
+};
+
