@@ -506,6 +506,8 @@ class TaskController {
         const type: any = getCharge?.type;
         const destinationHub: any = getCharge?.locations?.destinationHub;
 
+        const title_type = (updatedTask?.fulfillments[0].type).toLowerCase() === "return" ? "delivery" : (updatedTask?.fulfillments[0].type).toLowerCase();
+
         const quote = {
           price: {
             currency: 'INR',
@@ -514,7 +516,7 @@ class TaskController {
           breakup: [
             {
               '@ondc/org/item_id': type === 'P2H2P' ? 'Express' : 'Standard',
-              '@ondc/org/title_type': (updatedTask?.fulfillments[0].type).toLowerCase(),
+              '@ondc/org/title_type': title_type,
               price: {
                 currency: 'INR',
                 value: `${charge?.toFixed(2)}`,

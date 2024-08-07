@@ -81,7 +81,7 @@ class AgentContoller {
           });
         }
 
-        if ( distance > 60 && category.id === 'Immediate Delivery') {
+        if ( distance > 20 && category.id === 'Immediate Delivery') {
           res.send({
             data: {
               error: {

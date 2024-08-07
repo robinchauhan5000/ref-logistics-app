@@ -98,80 +98,78 @@ function addISODurationToDate({ currentDateISO,durationISO}:{currentDateISO:stri
 }
 
 
-// function subtractDurations(totalDuration:string, subDuration:string) {
-//   const parseISODuration = (isoDuration:any) => {
-//     const regex = /P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?/;
-//     const matches = isoDuration.match(regex);
-//     return {
-//       days: parseInt(matches[1] || 0, 10),
-//       hours: parseInt(matches[2] || 0, 10),
-//       minutes: parseInt(matches[3] || 0, 10),
-//       seconds: parseInt(matches[4] || 0, 10),
-//     };
-//   };
+function subtractISODurations(duration1ISO:any, duration2ISO:any) {
+  const parseISODuration = (durationISO:any) => {
+    const isoDurationRegex = /P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?/;
+    const matches = durationISO.match(isoDurationRegex);
+    
+    if (matches) {
+      const days = parseInt(matches[1], 10) || 0;
+      const hours = parseInt(matches[2], 10) || 0;
+      const minutes = parseInt(matches[3], 10) || 0;
+      const seconds = parseInt(matches[4], 10) || 0;
 
-//   const formatISODuration = ({ days, hours, minutes, seconds }:any) => {
-//     let result = 'P';
-//     if (days > 0) result += `${days}D`;
-//     if (hours > 0 || minutes > 0 || seconds > 0) result += 'T';
-//     if (hours > 0) result += `${hours}H`;
-//     if (minutes > 0) result += `${minutes}M`;
-//     if (seconds > 0) result += `${seconds}S`;
-//     if (result === 'P' || result === 'PT') result += '0S'; // Handle case where the duration is zero
-//     return result;
-//   };
+      return {
+        days,
+        hours,
+        minutes,
+        seconds
+      };
+    }
+    return {
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0
+    };
+  };
 
-//   const total = parseISODuration(totalDuration);
-//   const sub = parseISODuration(subDuration);
+  const duration1 = parseISODuration(duration1ISO);
+  const duration2 = parseISODuration(duration2ISO);
 
-//   // Convert total and sub durations to seconds
-//   const totalSeconds = total.days * 24 * 3600 + total.hours * 3600 + total.minutes * 60 + total.seconds;
-//   const subSeconds = sub.days * 24 * 3600 + sub.hours * 3600 + sub.minutes * 60 + sub.seconds;
+  let totalSeconds1 = duration1.days * 86400 + duration1.hours * 3600 + duration1.minutes * 60 + duration1.seconds;
+  let totalSeconds2 = duration2.days * 86400 + duration2.hours * 3600 + duration2.minutes * 60 + duration2.seconds;
 
-//   // Subtract the durations in seconds
-//   let remainingSeconds = totalSeconds - subSeconds;
-//   if (remainingSeconds < 0) {
-//     throw new Error('Subtraction results in a negative duration');
-//   }
+  let totalSeconds = totalSeconds1 - totalSeconds2;
 
-//   const resultDays = Math.floor(remainingSeconds / (24 * 3600));
-//   remainingSeconds %= (24 * 3600);
-//   const resultHours = Math.floor(remainingSeconds / 3600);
-//   remainingSeconds %= 3600;
-//   const resultMinutes = Math.floor(remainingSeconds / 60);
-//   remainingSeconds %= 60;
-//   const resultSeconds = remainingSeconds;
+  const days = Math.floor(totalSeconds / 86400);
+  totalSeconds %= 86400;
+  const hours = Math.floor(totalSeconds / 3600);
+  totalSeconds %= 3600;
+  const minutes = Math.floor(totalSeconds / 60);
+  totalSeconds %= 60;
+  const seconds = totalSeconds;
 
-//   const result = {
-//     days: resultDays,
-//     hours: resultHours,
-//     minutes: resultMinutes,
-//     seconds: resultSeconds,
-//   };
+  let resultISO = 'P';
+  if (days > 0) resultISO += `${days}D`;
+  if (hours > 0 || minutes > 0 || seconds > 0) resultISO += 'T';
+  if (hours > 0) resultISO += `${hours}H`;
+  if (minutes > 0) resultISO += `${minutes}M`;
+  if (seconds > 0) resultISO += `${seconds}S`;
 
-//   return formatISODuration(result);
-// }
-
+  return resultISO || 'P0D';
+}
 
 export function startRangeAndEndRange({currentTimeIsoString,duration,tat}:{currentTimeIsoString:string,duration:string,tat:string}){
 
   const starterStartRange = addISODurationToDate({currentDateISO:currentTimeIsoString,durationISO:duration})
-  const starterEndRange = addISODurationToDate({currentDateISO:starterStartRange,durationISO:duration})
+  // const starterEndRange = addISODurationToDate({currentDateISO:starterStartRange,durationISO:duration})
 
 
-  // const endDuration = subtractDurations(tat,duration)
-  const endEndRange =  addISODurationToDate({currentDateISO:starterEndRange,durationISO:tat})
+  const endDuration = subtractISODurations(tat,duration)
+  const endEndRange =  addISODurationToDate({currentDateISO:starterStartRange,durationISO:endDuration})
   return {
     startRang:{
       start:currentTimeIsoString,
-      end:starterEndRange
+      end:starterStartRange
     },
     endRange:{
-      start:starterEndRange,
+      start:starterStartRange,
       end:endEndRange
     }
   }
 }
+
 
 
 
