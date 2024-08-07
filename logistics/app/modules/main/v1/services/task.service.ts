@@ -602,9 +602,10 @@ class TaskService {
 
         const rtoPrice = ((parseFloat(deliveryPrice) * 30) / 100).toFixed(2);
         const rtoTax = ((parseFloat(rtoPrice) * 10) / 100).toFixed(2);
+        const newRTOItemId = 'rto';
 
         const RTOPriceQuote = {
-          '@ondc/org/item_id': get_RTO_ID?.rto,
+          '@ondc/org/item_id': newRTOItemId,
 
           '@ondc/org/title_type': 'rto',
           price: {
@@ -613,7 +614,7 @@ class TaskService {
           },
         };
         const RTOTaxQuote = {
-          '@ondc/org/item_id': get_RTO_ID?.rto,
+          '@ondc/org/item_id': newRTOItemId,
           '@ondc/org/title_type': 'tax',
           price: {
             currency: 'INR',
@@ -622,11 +623,11 @@ class TaskService {
         };
 
         const newRTOItem = {
-          id: 'rto',
+          id: newRTOItemId,
           fulfillment_id: get_RTO_ID?.rto,
           category_id: task.items[0].category_id,
           descriptor: {
-            code: 'P2P',
+            code: get_RTO_ID?.type ?? 'P2P',
           },
           time: {
             label: 'TAT',

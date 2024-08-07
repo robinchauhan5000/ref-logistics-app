@@ -331,12 +331,12 @@ export const getStatus = async (data: any) => {
 
   const updatedFulfillment = fulfillments?.map((item: any, index: number) => {
     item.start.time = { ...item.start.time, ...(index !== 1 && { duration: 'PT15M' }) }
-    item.end.tags = [
-      {
-        code: 'url_enabled',
-        value: 'yes',
-      },
-    ]
+    // item.end.tags = [
+    //   {
+    //     code: 'url_enabled',
+    //     value: 'yes',
+    //   },
+    // ]
     if (item.type === 'Delivery' || item.type === 'Return') {
       item.tags = [
         {

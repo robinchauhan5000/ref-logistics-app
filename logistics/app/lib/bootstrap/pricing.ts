@@ -5,7 +5,7 @@ const pricing: IpricingCalculation = {
   hyper_local: {
     basePrice: 20,
     additional_charges: 8,
-    cgst_sgst: 5.5,
+    cgst_sgst: 18,
   },
   inter_city: {
     delivery_type: {

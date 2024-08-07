@@ -106,7 +106,7 @@ class ModifyPayload {
 
   async cancel(data: any) {
     const context = JSON.parse(data.context)
-    const created_at = data.createdAt.toISOString()
+    const created_at = data.confirmCreatedAt.toISOString()
     context.bpp_id = BPP_ID
     context.bpp_uri = BPP_URI
     context.action = 'on_cancel'
