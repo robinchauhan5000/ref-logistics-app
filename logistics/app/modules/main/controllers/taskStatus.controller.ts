@@ -81,7 +81,9 @@ class TaskStatusController {
           text: updatedTask.status,
         };
         await notificationService.create(notificationData);
-        const headers = {};
+        const headers = {
+          internal: "true"
+        };
         const onStatusPayload = await modifyPayload.status(updatedTask);
         const httpRequest = new HttpRequest(
           `${clientURL}/protocol/v1/status`, //TODO: allow $like query
