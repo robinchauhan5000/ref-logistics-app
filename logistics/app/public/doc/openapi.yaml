@@ -83,7 +83,7 @@ paths:
             schema:
               type: object
               example:
-                email: robink.chauhan@thewitslab.com
+                email: akash.lal@thewitslab.com
       responses:
         '200':
           description: Successful response
