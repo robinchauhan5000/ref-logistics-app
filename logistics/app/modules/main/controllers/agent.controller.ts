@@ -17,9 +17,10 @@ const agentService = new AgentService();
 const taskService = new TaskService();
 const searchDumpService = new SearchDumpService();
 const hubsService = new HubsService();
-const descriptorName = 'ONDC Logistics';
-const long_desc = 'ONDC Logistics to delivery your goods in one go';
-const short_desc = 'ONDC Logistics to delivery your goods in one go';
+const descriptorName = process.env.DESCRIPTOR_NAME ||'ONDC Logistics';
+
+const long_desc = process.env.LONG_DESCRIPTION || 'ONDC Logistics to delivery your goods in one go';
+const short_desc = process.env.SHORT_DESCRIPTION ||'ONDC Logistics to delivery your goods in one go';
 class AgentContoller {
   async searchAgent(req: Request, res: Response, next: NextFunction) {
     try {

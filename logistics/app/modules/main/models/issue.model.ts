@@ -201,10 +201,10 @@ const IssueSchema: Schema = new Schema(
       merchant_order_id: { type: String, required: false },
     },
     description: {
-      short_desc: { type: String},
+      short_desc: { type: String },
       long_desc: { type: String },
       additional_desc: {
-        url: { type: String,  },
+        url: { type: String  },
         content_type: { type: String },
       },
       images: [{ type: String, required: true }],

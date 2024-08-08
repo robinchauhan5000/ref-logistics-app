@@ -15,7 +15,7 @@ import { On_Track } from './interfaces/onTrackInterface'
 const BPP_ID = process.env.BPP_ID
 const BPP_URI = process.env.BPP_URI
 // const providers = 'https://logistics-dev.thewitslab.com/'
-const descriptorName = 'ONDC Logistics'
+const descriptorName = process.env.DESCRIPTOR_NAME || 'ONDC Logistics'
 
 
 const states = [
