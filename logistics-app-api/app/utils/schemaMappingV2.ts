@@ -1,16 +1,18 @@
-const BPP_ID = process.env.BPP_ID
-const BPP_URI = process.env.BPP_URI
+
 import { On_search } from './interfaces/onSearchInterface'
 import { On_initV2 } from './interfaces/onInitInterfaceV2'
 import { On_confirm } from './interfaces/onConfirmInterfaceV2'
 import { On_update } from './interfaces/onUpdateInterfaceV2'
 import { removeIdKeys, calculateDeliveryCharges } from '../utils/utilityFunctions'
-const descriptorName = 'ONDC Logistics'
 import { uuid } from 'uuidv4'
 
 // import { uuid } from 'uuidv4'
-const long_desc = 'ONDC Logistics'
-const short_desc = 'ONDC Logistics'
+
+const BPP_ID = process.env.BPP_ID
+const BPP_URI = process.env.BPP_URI
+const descriptorName = process.env.DESCRIPTOR_NAME || 'ONDC Logistics'
+const long_desc =  process.env.LONG_DESCRIPTION_NAME || 'ONDC Logistics'
+const short_desc = process.env.SHORT_DESCRIPTION_NAME || 'ONDC Logistics'
 const states = [
   {
     key: 'Accepted',
